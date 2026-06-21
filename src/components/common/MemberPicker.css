@@ -1,0 +1,22 @@
+.mpicker{position:relative;width:100%}
+.mpicker-selected{display:flex;align-items:center;flex-wrap:wrap;gap:.35rem;min-height:38px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:.4rem .65rem;cursor:pointer;transition:border-color .2s}
+.mpicker-selected:hover{border-color:rgba(99,102,241,.4)}
+.mpicker-placeholder{color:#4b5563;font-size:.83rem}
+.mpicker-tag{display:inline-flex;align-items:center;gap:.3rem;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.25);border-radius:20px;padding:.15rem .5rem .15rem .25rem;font-size:.76rem;color:#c7d2fe}
+.mpicker-tag-av{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.58rem;font-weight:700;color:#fff;flex-shrink:0}
+.mpicker-tag-name{max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mpicker-tag-rm{background:none;border:none;color:#9ca3af;cursor:pointer;padding:0;font-size:.9rem;line-height:1;margin-left:.1rem}
+.mpicker-tag-rm:hover{color:#f87171}
+.mpicker-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1a1a24;border:1px solid rgba(255,255,255,.1);border-radius:10px;z-index:1000;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.mpicker-search-wrap{display:flex;align-items:center;gap:.5rem;padding:.6rem .75rem;border-bottom:1px solid rgba(255,255,255,.07)}
+.mpicker-search{flex:1;background:none;border:none;outline:none;color:#fff;font-size:.83rem}
+.mpicker-search::placeholder{color:#4b5563}
+.mpicker-list{max-height:220px;overflow-y:auto}
+.mpicker-loading,.mpicker-empty{padding:.75rem 1rem;font-size:.82rem;color:#6b7280;text-align:center}
+.mpicker-option{width:100%;display:flex;align-items:center;gap:.65rem;padding:.55rem .75rem;background:none;border:none;cursor:pointer;text-align:left;transition:background .15s}
+.mpicker-option:hover{background:rgba(255,255,255,.05)}
+.mpicker-option-sel{background:rgba(99,102,241,.08)}
+.mpicker-av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:#fff;flex-shrink:0}
+.mpicker-info{flex:1;min-width:0}
+.mpicker-name{display:block;font-size:.82rem;color:#e5e7eb;font-weight:500}
+.mpicker-email{display:block;font-size:.72rem;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
