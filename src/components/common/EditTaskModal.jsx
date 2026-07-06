@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
-import { useUpdateTaskMutation } from "../../features/tasks/taskApiSlice";
-import { selectCurrentUser } from "../../features/auth/authSlice.js";
-import MemberPicker from "./MemberPicker";
-import "./MemberPicker.css";
+import { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import { useUpdateTaskMutation } from '../../features/tasks/taskApiSlice';
+import { selectCurrentUser } from '../../features/auth/authSlice.js';
+import MemberPicker from './MemberPicker';
+import SubtaskList from './SubtaskList';
+import './MemberPicker.css';
 
 /**
  * EditTaskModal
@@ -17,29 +18,29 @@ export default function EditTaskModal({ task, projectId, onClose, onUpdated }) {
   const [updateTask, { isLoading }] = useUpdateTaskMutation();
   const currentUser = useSelector(selectCurrentUser);
   const [form, setForm] = useState({
-    title: "",
-    description: "",
-    status: "Todo",
-    priority: "Medium",
-    dueDate: "",
-    tags: "",
+    title: '',
+    description: '',
+    status: 'Todo',
+    priority: 'Medium',
+    dueDate: '',
+    tags: '',
     assignee: null,
   });
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     if (task) {
       setForm({
-        title: task.title || "",
-        description: task.description || "",
-        status: task.status || "Todo",
-        priority: task.priority || "Medium",
+        title: task.title || '',
+        description: task.description || '',
+        status: task.status || 'Todo',
+        priority: task.priority || 'Medium',
         dueDate:
           (task.due_date ?? task.dueDate)
-            ? (task.due_date ?? task.dueDate).split("T")[0]
-            : "",
-        tags: task.tags?.join(", ") || "",
+            ? (task.due_date ?? task.dueDate).split('T')[0]
+            : '',
+        tags: task.tags?.join(', ') || '',
         assignee: task.assignee_name
           ? {
               id: task.assignee_id,
@@ -58,8 +59,8 @@ export default function EditTaskModal({ task, projectId, onClose, onUpdated }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    setError("");
-    if (!form.title.trim()) return setError("Title is required.");
+    setError('');
+    if (!form.title.trim()) return setError('Title is required.');
     try {
       const updated = await updateTask({
         id: task.id,
@@ -71,7 +72,7 @@ export default function EditTaskModal({ task, projectId, onClose, onUpdated }) {
         assigneeId: form.assignee?.id || null,
         tags: form.tags
           ? form.tags
-              .split(",")
+              .split(',')
               .map((t) => t.trim())
               .filter(Boolean)
           : [],
@@ -82,7 +83,7 @@ export default function EditTaskModal({ task, projectId, onClose, onUpdated }) {
         onClose();
       }, 600);
     } catch (err) {
-      setError(err?.data?.message || "Failed to update task.");
+      setError(err?.data?.message || 'Failed to update task.');
     }
   };
 
@@ -136,7 +137,7 @@ export default function EditTaskModal({ task, projectId, onClose, onUpdated }) {
                 value={form.status}
                 onChange={handle}
               >
-                {["Todo", "In Progress", "Review", "Done"].map((s) => (
+                {['Todo', 'In Progress', 'Review', 'Done'].map((s) => (
                   <option key={s}>{s}</option>
                 ))}
               </select>
@@ -149,7 +150,7 @@ export default function EditTaskModal({ task, projectId, onClose, onUpdated }) {
                 value={form.priority}
                 onChange={handle}
               >
-                {["Low", "Medium", "High", "Critical"].map((p) => (
+                {['Low', 'Medium', 'High', 'Critical'].map((p) => (
                   <option key={p}>{p}</option>
                 ))}
               </select>
@@ -169,7 +170,7 @@ export default function EditTaskModal({ task, projectId, onClose, onUpdated }) {
 
           <div className="mf-field">
             <label className="mf-label">
-              Assignee {projectId ? "(project members only)" : ""}
+              Assignee {projectId ? '(project members only)' : ''}
             </label>
             <MemberPicker
               projectId={projectId}
@@ -200,10 +201,12 @@ export default function EditTaskModal({ task, projectId, onClose, onUpdated }) {
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={isLoading}>
-              {isLoading ? "Saving…" : "Save Changes"}
+              {isLoading ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </form>
+
+        {task?.id && <SubtaskList taskId={task.id} />}
       </div>
     </div>
   );

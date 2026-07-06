@@ -73,6 +73,72 @@
 /* Success banner inside modals */
 .modal-success{margin:.75rem 1.5rem 0;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.25);border-radius:8px;padding:.6rem .9rem;color:#6ee7b7;font-size:.82rem}
 
+/* ── Subtasks — card checklist (Linear/Notion/ClickUp style) ─────────────── */
+.stk-wrap{border-top:1px solid rgba(255,255,255,.06);padding:1rem 1.5rem 1.25rem;color:#fff}
+.stk-heading{display:flex;align-items:center;gap:.5rem;font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;margin:0 0 .7rem}
+.stk-count{font-size:.68rem;font-weight:600;letter-spacing:0;color:#a5b4fc;background:rgba(99,102,241,.14);padding:.1rem .45rem;border-radius:999px}
+.stk-progress{margin-bottom:.9rem}
+.stk-progress-row{display:flex;align-items:center;gap:.7rem;margin-bottom:.3rem}
+.stk-progress-pct{font-size:.74rem;font-weight:600;color:#a5b4fc;flex-shrink:0;min-width:2.2rem;text-align:right;font-variant-numeric:tabular-nums}
+.stk-progress-count{font-size:.72rem;color:#64748b}
+.stk-error{margin-bottom:.6rem;padding:.5rem .7rem;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);border-radius:8px;color:#f87171;font-size:.8rem}
+
+/* Cards — spacing over borders */
+.stk-list{display:flex;flex-direction:column;gap:.4rem}
+.stk-card{display:flex;align-items:flex-start;gap:.6rem;padding:.6rem .7rem;border-radius:10px;background:rgba(255,255,255,.03);transition:background .18s ease}
+.stk-card:hover{background:rgba(255,255,255,.055)}
+.stk-card-done{opacity:.62;transition:opacity .2s ease,background .18s ease}
+
+.stk-grip{display:flex;align-items:center;padding-top:.22rem;color:#475569;opacity:0;transition:opacity .15s ease;cursor:grab;flex-shrink:0}
+.stk-card:hover .stk-grip{opacity:1}
+
+.stk-check{width:18px;height:18px;margin-top:.12rem;padding:0;border-radius:6px;border:1.5px solid #475569;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;transition:background .18s ease,border-color .18s ease}
+.stk-check:hover{border-color:#818cf8}
+.stk-check-done{background:#6366f1;border-color:#6366f1}
+
+.stk-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:.18rem}
+.stk-title{font-size:.875rem;font-weight:500;color:#e2e8f0;line-height:1.35;word-break:break-word;transition:color .18s ease}
+.stk-title-done{color:#64748b;text-decoration:line-through}
+.stk-desc{font-size:.775rem;color:#8b96a8;line-height:1.45;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.stk-meta{display:flex;align-items:center;flex-wrap:wrap;gap:.3rem .75rem;margin-top:.28rem}
+.stk-due{display:inline-flex;align-items:center;gap:.32rem;font-size:.72rem;color:#94a3b8;white-space:nowrap}
+.stk-due-overdue{color:#f87171}
+.stk-badge{font-size:.65rem;font-weight:600;padding:.13rem .5rem;border-radius:999px;letter-spacing:.02em;white-space:nowrap}
+.stk-badge-high{background:rgba(239,68,68,.14);color:#f87171}
+.stk-badge-medium{background:rgba(245,158,11,.13);color:#fbbf24}
+.stk-badge-low{background:rgba(148,163,184,.12);color:#94a3b8}
+
+/* Hover-revealed actions */
+.stk-actions{display:flex;gap:.15rem;flex-shrink:0;opacity:0;transition:opacity .15s ease}
+.stk-card:hover .stk-actions,.stk-card:focus-within .stk-actions{opacity:1}
+@media (hover:none){.stk-actions,.stk-grip{opacity:1}}
+.stk-icon-btn{width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:none;border:none;cursor:pointer;color:#64748b;border-radius:7px;transition:color .15s ease,background .15s ease}
+.stk-icon-btn:hover{color:#a5b4fc;background:rgba(99,102,241,.12)}
+.stk-icon-btn-danger:hover{color:#f87171;background:rgba(239,68,68,.12)}
+
+/* Full-width add button */
+.stk-add-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:.45rem;margin-top:.55rem;padding:.6rem;border-radius:10px;border:1px dashed rgba(255,255,255,.13);background:transparent;color:#94a3b8;font-size:.82rem;font-weight:500;cursor:pointer;transition:border-color .18s ease,color .18s ease,background .18s ease}
+.stk-add-btn:hover{border-color:rgba(129,140,248,.45);color:#c7d2fe;background:rgba(99,102,241,.07)}
+
+/* Inline create/edit form */
+.stk-form{display:flex;flex-direction:column;gap:.7rem;margin-top:.55rem;padding:.9rem;border-radius:12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)}
+.stk-form-label{display:block;font-size:.66rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.3rem}
+.stk-form-row{display:flex;gap:.6rem;flex-wrap:wrap}
+.stk-form-row>div{flex:1;min-width:130px}
+.stk-form-footer{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.1rem}
+
+/* Empty state */
+.stk-empty{display:flex;flex-direction:column;align-items:center;gap:.2rem;padding:1.5rem 1rem;border-radius:12px;background:rgba(255,255,255,.02);border:1px dashed rgba(255,255,255,.09);text-align:center}
+.stk-empty-title{font-size:.86rem;font-weight:600;color:#cbd5e1}
+.stk-empty-sub{font-size:.76rem;color:#64748b;margin-bottom:.65rem}
+
+/* Compact metadata on narrow containers */
+@media (max-width:640px){
+  .stk-wrap{padding:.9rem 1rem 1rem}
+  .stk-meta{gap:.25rem .55rem}
+  .stk-grip{display:none}
+}
+
 /* Toast notifications */
 .toast-container{position:fixed;bottom:1.25rem;right:1.25rem;z-index:9999;display:flex;flex-direction:column;gap:.5rem;pointer-events:none}
 .toast{background:#1e293b;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:.75rem 1rem;font-size:.83rem;color:#e2e8f0;display:flex;align-items:center;gap:.6rem;pointer-events:auto;min-width:240px;max-width:340px;box-shadow:0 8px 24px rgba(0,0,0,.4)}

@@ -457,7 +457,7 @@ export default function ProjectDetails() {
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [newMembers, setNewMembers] = useState([]);
   const [addError, setAddError] = useState("");
-  const [taskForm, setTaskForm] = useState({ title: "", priority: "Medium", status: "Todo", dueDate: "", assignee: null });
+  const [taskForm, setTaskForm] = useState({ title: "", description: "", priority: "Medium", status: "Todo", dueDate: "", tags: "", assignee: null });
   const [taskError, setTaskError] = useState("");
 
   if (isLoading) return (
@@ -499,11 +499,13 @@ export default function ProjectDetails() {
     if (!taskForm.title.trim()) return setTaskError("Title is required.");
     try {
       await createTask({
-        title: taskForm.title, priority: taskForm.priority, status: taskForm.status,
+        title: taskForm.title, description: taskForm.description || undefined,
+        priority: taskForm.priority, status: taskForm.status,
         dueDate: taskForm.dueDate || undefined, projectId: Number(id),
         assigneeId: taskForm.assignee?.id || undefined,
+        tags: taskForm.tags ? taskForm.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined,
       }).unwrap();
-      setTaskForm({ title: "", priority: "Medium", status: "Todo", dueDate: "", assignee: null });
+      setTaskForm({ title: "", description: "", priority: "Medium", status: "Todo", dueDate: "", tags: "", assignee: null });
       setTaskOpen(false);
     } catch (err) {
       setTaskError(err?.data?.message || "Failed to create task.");
@@ -655,7 +657,7 @@ export default function ProjectDetails() {
                                  {task.tags.map(tag => <TagBadge key={tag} tag={tag} />)}
                                </div>
                              )}
-                             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                             <div className="absolute top-2 right-2 flex gap-1 transition-all">
                                <button type="button" onClick={e => { e.stopPropagation(); setEditTask(task); }}
                                  className="w-6 h-6 rounded-md flex items-center justify-center text-slate-600 hover:text-brand-400 hover:bg-brand-400/10 transition-all">
                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
@@ -781,6 +783,11 @@ export default function ProjectDetails() {
                 <input required className="mf-input" placeholder="What needs to be done?" value={taskForm.title}
                   onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} />
               </div>
+              <div className="mf-field">
+                <label className="mf-label">Description</label>
+                <textarea className="mf-input mf-textarea" rows="3" placeholder="Add more detail (optional)" value={taskForm.description}
+                  onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
               <div className="mf-row">
                 <div className="mf-field mf-field-grow">
                   <label className="mf-label">Status</label>
@@ -798,6 +805,11 @@ export default function ProjectDetails() {
               <div className="mf-field">
                 <label className="mf-label">Due date</label>
                 <input type="date" className="mf-input" value={taskForm.dueDate} onChange={e => setTaskForm(f => ({ ...f, dueDate: e.target.value }))} />
+              </div>
+              <div className="mf-field">
+                <label className="mf-label">Tags (comma-separated)</label>
+                <input className="mf-input" placeholder="frontend, bug, api…" value={taskForm.tags}
+                  onChange={e => setTaskForm(f => ({ ...f, tags: e.target.value }))} />
               </div>
               <div className="mf-field">
                 <label className="mf-label">Assignee (must be a project member)</label>

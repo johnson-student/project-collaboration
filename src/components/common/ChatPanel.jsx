@@ -206,7 +206,7 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="flex gap-2 group"
+                  className={`flex gap-2 group ${isOwn ? "flex-row-reverse justify-end" : ""}`}
                 >
                   <div
                     className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5"
@@ -214,8 +214,8 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
                   >
                     {m.initials}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 mb-0.5">
+                  <div className={`flex-1 min-w-0 ${isOwn ? "text-right" : ""}`}>
+                    <div className={`flex items-baseline gap-2 mb-0.5 ${isOwn ? "flex-row-reverse justify-start" : ""} `}>
                       <span className="text-xs font-semibold text-slate-300">{m.user_name}</span>
                       <span className="text-[11px] text-slate-600">{formatDateTime(m.created_at)}</span>
                       {!!m.edited && <span className="text-[11px] text-slate-700">(edited)</span>}
@@ -253,37 +253,36 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
                         </div>
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-300 break-words whitespace-pre-wrap">{m.body}</p>
+                      <div className={`flex items-center gap-1 ${isOwn ? "flex-row-reverse" : ""}`}>
+                        <p className={`text-sm break-words whitespace-pre-wrap px-3 py-2 rounded-lg inline-block max-w-xs ${isOwn ? "bg-brand-500/40 text-slate-100" : "text-slate-300"}`}>{m.body}</p>
+                        {canDelete && (
+                          <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                            {isOwn && (
+                              <button
+                                onClick={() => { setEditingId(m.id); setEditText(m.body); }}
+                                title="Edit"
+                                className="w-6 h-6 rounded flex items-center justify-center text-slate-600 hover:text-brand-400 transition-all"
+                              >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                </svg>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDelete(m.id)}
+                              title="Delete"
+                              className="w-6 h-6 rounded flex items-center justify-center text-slate-600 hover:text-red-400 transition-all"
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
+                                <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-
-                  {editingId !== m.id && (isOwn || canDelete) && (
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                      {isOwn && (
-                        <button
-                          onClick={() => { setEditingId(m.id); setEditText(m.body); }}
-                          title="Edit"
-                          className="w-6 h-6 rounded flex items-center justify-center text-slate-600 hover:text-brand-400 transition-all"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => handleDelete(m.id)}
-                          title="Delete"
-                          className="w-6 h-6 rounded flex items-center justify-center text-slate-600 hover:text-red-400 transition-all"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                            <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </motion.div>
               );
             })}

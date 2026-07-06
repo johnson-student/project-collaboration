@@ -13,21 +13,24 @@ import {
 import { useCreateAssignmentRequestMutation } from "../../features/assignments/assignmentApiSlice.js";
 import { useGetProjectsQuery } from "../../features/projects/projectApiSlice.js";
 import {
-  StatusBadge,
   PriorityBadge,
   Avatar,
   Button,
   EmptyState,
   Skeleton,
   TagBadge,
+  ProgressBar,
 } from "../../components/ui/index.jsx";
 import { formatDate, isOverdue, isDueSoon } from "../../utils/helpers.js";
 import { selectCurrentUser } from "../../features/auth/authSlice.js";
 import MemberPicker from "../../components/common/MemberPicker.jsx";
 import EditTaskModal from "../../components/common/EditTaskModal.jsx";
+import SubtaskList from "../../components/common/SubtaskList.jsx";
 import "../../components/common/MemberPicker.css";
 import { useToast } from "../../components/common/Toast.jsx";
 import "../../components/common/modal.css";
+
+const STATUS_OPTIONS = ["Todo", "In Progress", "Review", "Done"];
 
 export default function Tasks() {
   const currentUser = useSelector(selectCurrentUser);
@@ -49,6 +52,8 @@ export default function Tasks() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
+  const [expandedIds, setExpandedIds] = useState(new Set());
+  const [completeConfirmTask, setCompleteConfirmTask] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
@@ -82,7 +87,7 @@ export default function Tasks() {
     if (!form.title.trim()) return setFormError("Title is required.");
     if (!form.projectId) return setFormError("Please select a project.");
     try {
-      await createTask({
+      const newTask = await createTask({
         title: form.title,
         description: form.description,
         status: form.status,
@@ -108,16 +113,50 @@ export default function Tasks() {
         tags: "",
         assignee: null,
       });
+      // Subtasks can only be created once the task exists, so expand the
+      // new row right away so the user can add subtasks immediately.
+      setExpandedIds((prev) => new Set(prev).add(newTask.id));
     } catch (err) {
       setFormError(err?.data?.message || "Failed to create task.");
     }
   };
 
-  const handleToggleDone = (task) =>
-    updateTask({
-      id: task.id,
-      status: task.status === "Done" ? "Todo" : "Done",
+  const toggleExpand = (taskId) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.has(taskId) ? next.delete(taskId) : next.add(taskId);
+      return next;
     });
+
+  const changeStatus = async (task, status) => {
+    try {
+      await updateTask({ id: task.id, status }).unwrap();
+    } catch (err) {
+      if (err?.status === 409 && err?.data?.requiresConfirmation) {
+        setCompleteConfirmTask(task);
+        return;
+      }
+      toast({ message: err?.data?.message || "Failed to update status", type: "error" });
+    }
+  };
+
+  const handleToggleDone = (task) =>
+    changeStatus(task, task.status === "Done" ? "Todo" : "Done");
+
+  const confirmCompleteAll = async () => {
+    if (!completeConfirmTask) return;
+    try {
+      await updateTask({
+        id: completeConfirmTask.id,
+        status: "Done",
+        completeSubtasks: true,
+      }).unwrap();
+    } catch (err) {
+      toast({ message: err?.data?.message || "Failed to complete task", type: "error" });
+    } finally {
+      setCompleteConfirmTask(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -251,6 +290,12 @@ export default function Tasks() {
                   }
                 : null;
 
+              const hasSubtasks = (task.subtask_total || 0) > 0;
+              const subtaskPct = hasSubtasks
+                ? Math.round((task.subtask_done / task.subtask_total) * 100)
+                : 0;
+              const isExpanded = expandedIds.has(task.id);
+
               return (
                 <motion.div
                   key={task.id}
@@ -259,8 +304,21 @@ export default function Tasks() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ delay: i * 0.03 }}
-                  className="flex items-center gap-4 px-4 py-4 border-b border-white/5 last:border-0 hover:bg-white/3 transition-colors group"
+                  className="border-b border-white/5 last:border-0"
                 >
+                <div className="flex items-center gap-4 px-4 py-4 hover:bg-white/3 transition-colors group">
+                  {/* Expand / collapse subtasks */}
+                  <button
+                    onClick={() => toggleExpand(task.id)}
+                    title={isExpanded ? "Collapse subtasks" : "Expand subtasks"}
+                    className="w-5 h-5 flex items-center justify-center shrink-0 text-slate-500 hover:text-slate-300 transition-transform"
+                    style={{ transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)" }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3 h-3">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+
                   {/* Completion toggle */}
                   <button
                     onClick={() => handleToggleDone(task)}
@@ -302,12 +360,32 @@ export default function Tasks() {
                         <TagBadge key={tag} tag={tag} />
                       ))}
                     </div>
+                    {hasSubtasks && (
+                      <div className="flex items-center gap-2 mt-1.5 max-w-50">
+                        <ProgressBar value={subtaskPct} className="flex-1" />
+                        <span className="text-[11px] text-slate-500 shrink-0">
+                          {task.subtask_done}/{task.subtask_total} subtasks
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Meta + actions */}
                   <div className="flex items-center gap-3 shrink-0">
                     <PriorityBadge priority={task.priority} />
-                    <StatusBadge status={task.status} />
+                    <select
+                      value={task.status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => changeStatus(task, e.target.value)}
+                      title="Update status"
+                      className="text-xs font-semibold rounded-full pl-2.5 pr-1.5 py-1 bg-white/5 border border-white/10 text-slate-300 hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-brand-500/20 cursor-pointer"
+                    >
+                      {STATUS_OPTIONS.map((s) => (
+                        <option key={s} value={s} className="bg-slate-900">
+                          {s}
+                        </option>
+                      ))}
+                    </select>
                     <span
                       className={`text-xs font-medium ${overdue ? "text-red-400" : dueSoon ? "text-amber-400" : "text-slate-600"}`}
                     >
@@ -322,7 +400,7 @@ export default function Tasks() {
                         type="button"
                         onClick={() => setAssignPickerTask(task)}
                         title="Request task assignment"
-                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-brand-300 hover:bg-brand-400/10 transition-all opacity-0 group-hover:opacity-100"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-brand-300 hover:bg-brand-400/10 transition-all"
                         disabled={assigningTaskId === task.id}
                       >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
@@ -337,7 +415,7 @@ export default function Tasks() {
                       type="button"
                       onClick={() => setEditTask(task)}
                       title="Edit task"
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-brand-400 hover:bg-brand-400/10 transition-all opacity-0 group-hover:opacity-100"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-brand-400 hover:bg-brand-400/10 transition-all"
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -356,7 +434,7 @@ export default function Tasks() {
                       type="button"
                       onClick={() => setDeleteTarget(task)}
                       title="Delete task"
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-all"
                     >
                       <svg
                         viewBox="0 0 24 24"
@@ -372,6 +450,21 @@ export default function Tasks() {
                       </svg>
                     </button>
                   </div>
+                </div>
+
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden bg-black/15"
+                    >
+                      <SubtaskList taskId={task.id} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 </motion.div>
               );
             })}
@@ -551,6 +644,49 @@ export default function Tasks() {
           onClose={() => setEditTask(null)}
           onUpdated={() => setEditTask(null)}
         />
+      )}
+
+      {/* Complete Task Confirmation (Rule 3: unfinished subtasks) */}
+      {completeConfirmTask && (
+        <div
+          className="modal-backdrop"
+          onClick={(e) => e.target === e.currentTarget && setCompleteConfirmTask(null)}
+        >
+          <div className="modal-box" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Complete this task?</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setCompleteConfirmTask(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-form">
+              <p className="text-slate-400 text-sm mb-4">
+                This task still has unfinished subtasks. Completing the parent
+                task will also mark all remaining subtasks as completed.
+              </p>
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setCompleteConfirmTask(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={confirmCompleteAll}
+                >
+                  Complete All
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete Confirmation Modal */}

@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { useSelector } from "react-redux";
+import { skipToken } from "@reduxjs/toolkit/query";
 import { useGetTasksQuery, useMoveTaskMutation, useDeleteTaskMutation } from "../../features/tasks/taskApiSlice.js";
 import { useGetProjectsQuery } from "../../features/projects/projectApiSlice.js";
-import { PriorityBadge, Avatar, TagBadge, Skeleton } from "../../components/ui/index.jsx";
+import { PriorityBadge, Avatar, TagBadge, Skeleton, ProgressBar } from "../../components/ui/index.jsx";
 import { formatDate, isOverdue } from "../../utils/helpers.js";
+import { selectCurrentUser } from "../../features/auth/authSlice.js";
 import EditTaskModal from "../../components/common/EditTaskModal.jsx";
 import "../../components/common/modal.css";
 
@@ -15,7 +18,11 @@ const COLUMNS = [
 ];
 
 export default function Kanban() {
-  const { data: tasksRes = {}, isLoading } = useGetTasksQuery();
+  const currentUser = useSelector(selectCurrentUser);
+  const taskQueryArgs = currentUser?.id
+    ? { assigneeId: currentUser.id }
+    : skipToken;
+  const { data: tasksRes = {}, isLoading } = useGetTasksQuery(taskQueryArgs);
   const { data: projRes  = {} }            = useGetProjectsQuery();
   const [moveTask]   = useMoveTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
@@ -23,11 +30,12 @@ export default function Kanban() {
   const tasks    = tasksRes.data ?? (Array.isArray(tasksRes) ? tasksRes : []);
   const projects = projRes.data  ?? (Array.isArray(projRes)  ? projRes  : []);
 
-  const [draggedTask,     setDraggedTask]     = useState(null);
-  const [dragOverColumn,  setDragOverColumn]  = useState(null);
-  const [projectFilter,   setProjectFilter]   = useState("all");
-  const [editTask,        setEditTask]        = useState(null);
-  const [deleteTarget,    setDeleteTarget]    = useState(null);
+  const [draggedTask,      setDraggedTask]      = useState(null);
+  const [dragOverColumn,   setDragOverColumn]   = useState(null);
+  const [projectFilter,    setProjectFilter]    = useState("all");
+  const [editTask,         setEditTask]         = useState(null);
+  const [deleteTarget,     setDeleteTarget]     = useState(null);
+  const [completeConfirm,  setCompleteConfirm]  = useState(null); // { task, colId }
 
   const filteredTasks = projectFilter === "all"
     ? tasks
@@ -40,10 +48,31 @@ export default function Kanban() {
   const handleDragOver  = (e, colId) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverColumn(colId); };
   const handleDrop      = async (e, colId) => {
     e.preventDefault();
-    if (draggedTask && draggedTask.status !== colId) await moveTask({ id:draggedTask.id, status:colId });
+    const task = draggedTask;
     setDraggedTask(null); setDragOverColumn(null);
+    if (!task || task.status === colId) return;
+    try {
+      await moveTask({ id: task.id, status: colId }).unwrap();
+    } catch (err) {
+      if (err?.status === 409 && err?.data?.requiresConfirmation) {
+        setCompleteConfirm({ task, colId });
+      }
+    }
   };
   const handleDragEnd = () => { setDraggedTask(null); setDragOverColumn(null); };
+
+  const confirmCompleteAll = async () => {
+    if (!completeConfirm) return;
+    try {
+      await moveTask({
+        id: completeConfirm.task.id,
+        status: completeConfirm.colId,
+        completeSubtasks: true,
+      }).unwrap();
+    } finally {
+      setCompleteConfirm(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -106,10 +135,15 @@ export default function Kanban() {
                         id: task.assignee_id, name: task.assignee_name,
                         initials: task.assignee_initials, color: task.assignee_color, avatar: task.assignee_avatar,
                       } : null;
+                      const hasSubtasks = (task.subtask_total || 0) > 0;
+                      const subtaskPct = hasSubtasks
+                        ? Math.round((task.subtask_done / task.subtask_total) * 100)
+                        : 0;
 
                       return (
                         <motion.div key={task.id} layout draggable
                           onDragStart={(e) => handleDragStart(e, task)} onDragEnd={handleDragEnd}
+                          onClick={() => setEditTask(task)}
                           whileHover={{ scale:1.01 }}
                           className={`rounded-xl p-3 border cursor-grab active:cursor-grabbing transition-all group relative ${isDragging ? "opacity-40 border-brand-500/30" : "border-white/6 hover:border-white/14 bg-white/3 hover:bg-white/5"}`}>
                           {project && (
@@ -124,6 +158,17 @@ export default function Kanban() {
                               {task.tags.slice(0,2).map((tag) => <TagBadge key={tag} tag={tag}/>)}
                             </div>
                           )}
+                          {hasSubtasks && (
+                            <div className="mb-2">
+                              <div className="flex items-center gap-2">
+                                <ProgressBar value={subtaskPct} className="flex-1"/>
+                                <span className="text-[10px] font-semibold text-slate-500 shrink-0">{subtaskPct}%</span>
+                              </div>
+                              <span className="text-[10px] text-slate-600">
+                                {task.subtask_done}/{task.subtask_total} subtasks completed
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between mt-2">
                             <PriorityBadge priority={task.priority}/>
                             <div className="flex items-center gap-2">
@@ -134,8 +179,8 @@ export default function Kanban() {
                             </div>
                           </div>
 
-                          {/* Edit / Delete buttons (visible on hover) */}
-                          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                          {/* Edit / Delete buttons */}
+                          <div className="absolute top-2 right-2 flex gap-1 transition-all">
                             <button type="button"
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => { e.stopPropagation(); setEditTask(task); }}
@@ -196,6 +241,27 @@ export default function Kanban() {
               <div className="modal-actions">
                 <button type="button" className="btn-ghost" onClick={() => setDeleteTarget(null)}>Cancel</button>
                 <button type="button" className="btn-danger" onClick={handleDelete}>Delete Task</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Task Confirmation (Rule 3: unfinished subtasks) */}
+      {completeConfirm && (
+        <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && setCompleteConfirm(null)}>
+          <div className="modal-box" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Complete this task?</h2>
+              <button type="button" className="modal-close" onClick={() => setCompleteConfirm(null)}>×</button>
+            </div>
+            <div className="modal-form">
+              <p className="text-slate-400 text-sm mb-4">
+                This task still has unfinished subtasks. Completing the parent task will also mark all remaining subtasks as completed.
+              </p>
+              <div className="modal-actions">
+                <button type="button" className="btn-ghost" onClick={() => setCompleteConfirm(null)}>Cancel</button>
+                <button type="button" className="btn-primary" onClick={confirmCompleteAll}>Complete All</button>
               </div>
             </div>
           </div>
