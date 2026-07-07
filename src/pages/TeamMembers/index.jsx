@@ -62,7 +62,7 @@ export default function TeamMembers() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon="👥"
+          icon="users"
           title="No members found"
           description="You'll see teammates once you're added to a shared project"
         />

@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "./Toast.jsx";
 import { getSocket } from "../../api/socket.js";
-import { formatDateTime } from "../../utils/helpers.js";
+import { formatTime, formatChatDate } from "../../utils/helpers.js";
+import { Icon } from "./icons.jsx";
 import {
   useGetProjectMessagesQuery,
   useSendMessageMutation,
@@ -14,7 +15,10 @@ const TYPING_TIMEOUT_MS = 2500;
 
 export default function ChatPanel({ projectId, currentUser, projectRole }) {
   const toast = useToast();
-  const { data: history = [], isLoading } = useGetProjectMessagesQuery({ projectId });
+  const { data: history = [], isLoading } = useGetProjectMessagesQuery(
+    { projectId },
+    { refetchOnMountOrArgChange: true }
+  );
   const [sendMessage]   = useSendMessageMutation();
   const [editMessage]   = useEditMessageMutation();
   const [deleteMessage] = useDeleteMessageMutation();
@@ -31,9 +35,15 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
   const typingTimers = useRef({});
   const lastTypingEmit = useRef(0);
 
-  // Seed local message list from REST history once it loads
+  // Seed local message list from REST history; keep any live socket
+  // messages that arrived while the (re)fetch was in flight
   useEffect(() => {
-    setMessages(history);
+    setMessages((prev) => {
+      if (prev.length === 0) return history;
+      const lastId = history.length ? history[history.length - 1].id : 0;
+      const extras = prev.filter((m) => m.id > lastId);
+      return [...history, ...extras];
+    });
   }, [history]);
 
   // Auto-scroll to bottom on new messages
@@ -176,7 +186,7 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3">
         {isLoading ? (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
@@ -191,35 +201,69 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
           </div>
         ) : messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center py-8">
-            <div className="w-12 h-12 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-3 text-xl">💬</div>
+            <div className="w-12 h-12 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mb-3 text-brand-400">
+              <Icon name="message" className="w-5 h-5" />
+            </div>
             <p className="text-sm text-slate-500">No messages yet. Say hello to the team!</p>
           </div>
         ) : (
           <AnimatePresence initial={false}>
-            {messages.map((m) => {
+            {messages.flatMap((m, i) => {
               const isOwn = m.user_id === currentUser?.id;
               const canDelete = isOwn || canModerate;
-              return (
+              const day = new Date(m.created_at).toDateString();
+              const prev = i > 0 ? messages[i - 1] : null;
+              const prevDay = prev ? new Date(prev.created_at).toDateString() : null;
+              // Telegram-style grouping: same sender, same day, within 5 minutes
+              const groupStart =
+                !prev ||
+                prev.user_id !== m.user_id ||
+                prevDay !== day ||
+                new Date(m.created_at) - new Date(prev.created_at) > 5 * 60 * 1000;
+              const nodes = [];
+
+              if (day !== prevDay) {
+                nodes.push(
+                  <motion.div
+                    key={`day-${day}`}
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex justify-center py-1 mt-3 first:mt-0"
+                  >
+                    <span className="px-3 py-0.5 rounded-full bg-white/6 text-[11px] font-medium text-slate-400 select-none">
+                      {formatChatDate(m.created_at)}
+                    </span>
+                  </motion.div>
+                );
+              }
+
+              nodes.push(
                 <motion.div
                   key={m.id}
                   layout
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className={`flex gap-2 group ${isOwn ? "flex-row-reverse justify-end" : ""}`}
+                  className={`flex gap-2 group ${groupStart ? "mt-3 first:mt-0" : "mt-0.5"} ${isOwn ? "flex-row-reverse justify-end" : ""}`}
                 >
-                  <div
-                    className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5"
-                    style={{ backgroundColor: m.color || "#6366f1" }}
-                  >
-                    {m.initials}
-                  </div>
-                  <div className={`flex-1 min-w-0 ${isOwn ? "text-right" : ""}`}>
-                    <div className={`flex items-baseline gap-2 mb-0.5 ${isOwn ? "flex-row-reverse justify-start" : ""} `}>
-                      <span className="text-xs font-semibold text-slate-300">{m.user_name}</span>
-                      <span className="text-[11px] text-slate-600">{formatDateTime(m.created_at)}</span>
-                      {!!m.edited && <span className="text-[11px] text-slate-700">(edited)</span>}
+                  {groupStart ? (
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5"
+                      style={{ backgroundColor: m.color || "#6366f1" }}
+                    >
+                      {m.initials}
                     </div>
+                  ) : (
+                    <div className="w-7 shrink-0" />
+                  )}
+                  <div className={`flex-1 min-w-0 ${isOwn ? "text-right" : ""}`}>
+                    {!isOwn && groupStart && (
+                      <div className="flex items-baseline gap-2 mb-0.5">
+                        <span className="text-xs font-semibold text-slate-300">{m.user_name}</span>
+                      </div>
+                    )}
 
                     {editingId === m.id ? (
                       <div className="space-y-1.5">
@@ -254,7 +298,13 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
                       </div>
                     ) : (
                       <div className={`flex items-center gap-1 ${isOwn ? "flex-row-reverse" : ""}`}>
-                        <p className={`text-sm break-words whitespace-pre-wrap px-3 py-2 rounded-lg inline-block max-w-xs ${isOwn ? "bg-brand-500/40 text-slate-100" : "text-slate-300"}`}>{m.body}</p>
+                        <p className={`text-sm break-words whitespace-pre-wrap px-3 py-1.5 inline-block max-w-xs text-left ${isOwn ? `bg-brand-500/40 text-slate-100 rounded-l-2xl rounded-br-md ${groupStart ? "rounded-tr-2xl" : "rounded-tr-md"}` : `bg-white/6 text-slate-300 rounded-r-2xl rounded-bl-md ${groupStart ? "rounded-tl-2xl" : "rounded-tl-md"}`}`}>
+                          {m.body}
+                          <span className={`float-right whitespace-nowrap select-none text-[10px] leading-none ml-2 mt-2 ${isOwn ? "text-slate-300/60" : "text-slate-500"}`}>
+                            {!!m.edited && "edited "}
+                            {formatTime(m.created_at)}
+                          </span>
+                        </p>
                         {canDelete && (
                           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
                             {isOwn && (
@@ -285,6 +335,7 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
                   </div>
                 </motion.div>
               );
+              return nodes;
             })}
           </AnimatePresence>
         )}
@@ -292,13 +343,31 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
 
       {/* Typing indicator */}
       <div className="px-4 h-5 shrink-0">
-        {typingNames.length > 0 && (
-          <p className="text-xs text-slate-600 italic">
-            {typingNames.length === 1
-              ? `${typingNames[0]} is typing…`
-              : `${typingNames.slice(0, 2).join(", ")}${typingNames.length > 2 ? " and others" : ""} are typing…`}
-          </p>
-        )}
+        <AnimatePresence>
+          {typingNames.length > 0 && (
+            <motion.p
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.18 }}
+              className="text-xs text-slate-600 italic flex items-center gap-1.5"
+            >
+              <span className="flex items-center gap-0.5">
+                {[0, 1, 2].map((i) => (
+                  <motion.span
+                    key={i}
+                    className="w-1 h-1 rounded-full bg-slate-500 inline-block"
+                    animate={{ y: [0, -3, 0], opacity: [0.4, 1, 0.4] }}
+                    transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut", delay: i * 0.15 }}
+                  />
+                ))}
+              </span>
+              {typingNames.length === 1
+                ? `${typingNames[0]} is typing…`
+                : `${typingNames.slice(0, 2).join(", ")}${typingNames.length > 2 ? " and others" : ""} are typing…`}
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Composer */}

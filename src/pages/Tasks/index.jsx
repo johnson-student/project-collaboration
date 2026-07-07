@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSelector } from "react-redux";
 import { skipToken } from "@reduxjs/toolkit/query";
@@ -7,8 +8,7 @@ import {
   useCreateTaskMutation,
   useUpdateTaskMutation,
   useDeleteTaskMutation,
-  useAddCommentMutation, useEditCommentMutation, useDeleteCommentMutation,
-  useGetTaskByIdQuery,
+  useCreateSubtaskMutation,
 } from "../../features/tasks/taskApiSlice.js";
 import { useCreateAssignmentRequestMutation } from "../../features/assignments/assignmentApiSlice.js";
 import { useGetProjectsQuery } from "../../features/projects/projectApiSlice.js";
@@ -28,6 +28,9 @@ import EditTaskModal from "../../components/common/EditTaskModal.jsx";
 import SubtaskList from "../../components/common/SubtaskList.jsx";
 import "../../components/common/MemberPicker.css";
 import { useToast } from "../../components/common/Toast.jsx";
+import { Icon, ProjectIcon } from "../../components/common/icons.jsx";
+import SubtaskDraftField from "../../components/common/SubtaskDraftField.jsx";
+import TaskComments from "../../components/common/TaskComments.jsx";
 import "../../components/common/modal.css";
 
 const STATUS_OPTIONS = ["Todo", "In Progress", "Review", "Done"];
@@ -41,6 +44,7 @@ export default function Tasks() {
   const { data: projRes = {} } = useGetProjectsQuery();
   const toast = useToast();
   const [createTask, { isLoading: creating }] = useCreateTaskMutation();
+  const [createSubtask] = useCreateSubtaskMutation();
   const [updateTask] = useUpdateTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
   const [createAssignmentRequest] = useCreateAssignmentRequestMutation();
@@ -69,6 +73,18 @@ export default function Tasks() {
     assignee: null,
   });
   const [formError, setFormError] = useState("");
+  const [draftSubtasks, setDraftSubtasks] = useState([]);
+
+  // Deep link: /tasks/:taskId (from notifications) expands that task's row
+  const { taskId: routeTaskId } = useParams();
+  useEffect(() => {
+    if (!routeTaskId || isLoading) return;
+    setExpandedIds((prev) => new Set(prev).add(Number(routeTaskId)));
+    const t = setTimeout(() => {
+      document.getElementById(`task-row-${routeTaskId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 150);
+    return () => clearTimeout(t);
+  }, [routeTaskId, isLoading]);
 
   const filtered = tasks.filter((t) => {
     const matchStatus = statusFilter === "All" || t.status === statusFilter;
@@ -102,6 +118,22 @@ export default function Tasks() {
               .filter(Boolean)
           : [],
       }).unwrap();
+      // Subtasks need the parent task's id, so drafted ones are created right after it
+      if (newTask?.id && draftSubtasks.length > 0) {
+        for (const s of draftSubtasks) {
+          try {
+            await createSubtask({
+              taskId: newTask.id,
+              title: s.title,
+              description: s.description || null,
+              priority: s.priority,
+              dueDate: s.dueDate || null,
+            }).unwrap();
+          } catch {
+            toast({ message: `Couldn't add subtask "${s.title}"`, type: "error" });
+          }
+        }
+      }
       setCreateOpen(false);
       setForm({
         title: "",
@@ -113,12 +145,18 @@ export default function Tasks() {
         tags: "",
         assignee: null,
       });
-      // Subtasks can only be created once the task exists, so expand the
-      // new row right away so the user can add subtasks immediately.
+      setDraftSubtasks([]);
+      // Expand the new row right away so the subtasks are visible immediately.
       setExpandedIds((prev) => new Set(prev).add(newTask.id));
     } catch (err) {
       setFormError(err?.data?.message || "Failed to create task.");
     }
+  };
+
+  const closeCreateModal = () => {
+    setCreateOpen(false);
+    setDraftSubtasks([]);
+    setFormError("");
   };
 
   const toggleExpand = (taskId) =>
@@ -259,7 +297,7 @@ export default function Tasks() {
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState
-          icon="✅"
+          icon="check-circle"
           title="No tasks found"
           description="Create a task or adjust your filters"
           action={
@@ -299,6 +337,7 @@ export default function Tasks() {
               return (
                 <motion.div
                   key={task.id}
+                  id={`task-row-${task.id}`}
                   layout
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -347,13 +386,13 @@ export default function Tasks() {
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {project && (
                         <span
-                          className="text-[11px] font-medium px-1.5 py-0.5 rounded-md"
+                          className="text-[11px] font-medium px-1.5 py-0.5 rounded-md inline-flex items-center gap-1"
                           style={{
                             color: project.color,
                             background: `${project.color}15`,
                           }}
                         >
-                          {project.icon} {project.name}
+                          <ProjectIcon icon={project.icon} className="w-3 h-3" /> {project.name}
                         </span>
                       )}
                       {task.tags?.map((tag) => (
@@ -387,9 +426,9 @@ export default function Tasks() {
                       ))}
                     </select>
                     <span
-                      className={`text-xs font-medium ${overdue ? "text-red-400" : dueSoon ? "text-amber-400" : "text-slate-600"}`}
+                      className={`text-xs font-medium inline-flex items-center gap-1 ${overdue ? "text-red-400" : dueSoon ? "text-amber-400" : "text-slate-600"}`}
                     >
-                      {overdue ? "⚠ " : dueSoon ? "🔔 " : ""}
+                      {overdue ? <Icon name="warning" className="w-3 h-3" /> : dueSoon ? <Icon name="bell" className="w-3 h-3" /> : null}
                       {formatDate(task.due_date ?? task.dueDate)}
                     </span>
                     {assignee && <Avatar user={assignee} size="sm" />}
@@ -462,6 +501,9 @@ export default function Tasks() {
                       className="overflow-hidden bg-black/15"
                     >
                       <SubtaskList taskId={task.id} />
+                      <div className="px-4 pb-4">
+                        <TaskComments taskId={task.id} currentUser={currentUser} />
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -476,7 +518,7 @@ export default function Tasks() {
       {createOpen && (
         <div
           className="modal-backdrop"
-          onClick={(e) => e.target === e.currentTarget && setCreateOpen(false)}
+          onClick={(e) => e.target === e.currentTarget && closeCreateModal()}
         >
           <div className="modal-box">
             <div className="modal-header">
@@ -484,7 +526,7 @@ export default function Tasks() {
               <button
                 type="button"
                 className="modal-close"
-                onClick={() => setCreateOpen(false)}
+                onClick={closeCreateModal}
               >
                 ×
               </button>
@@ -566,7 +608,7 @@ export default function Tasks() {
                     <option value="">Select project…</option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.icon} {p.name}
+                        {p.name}
                       </option>
                     ))}
                   </select>
@@ -615,11 +657,12 @@ export default function Tasks() {
                   }
                 />
               </div>
+              <SubtaskDraftField drafts={draftSubtasks} onChange={setDraftSubtasks} />
               <div className="modal-actions">
                 <button
                   type="button"
                   className="btn-ghost"
-                  onClick={() => setCreateOpen(false)}
+                  onClick={closeCreateModal}
                 >
                   Cancel
                 </button>

@@ -1,21 +1,25 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { useLoginMutation } from "../../features/auth/authApiSlice";
+import { useLoginMutation, useResendVerificationMutation } from "../../features/auth/authApiSlice";
 import { setCredentials } from "../../features/auth/authSlice";
 import "./auth.css";
+import { Icon } from "../../components/common/icons.jsx";
 
 export default function Login() {
   const navigate  = useNavigate();
   const location  = useLocation();
   const dispatch  = useDispatch();
   const [login, { isLoading }] = useLoginMutation();
+  const [resendVerification, { isLoading: isResending }] = useResendVerificationMutation();
   const [form, setForm]   = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [show, setShow]   = useState(false);
+  const [unverified, setUnverified] = useState(false);
+  const [resent, setResent] = useState(false);
   const from = location.state?.from?.pathname || "/";
 
-  const handle = (e) => { setForm((f) => ({ ...f, [e.target.name]: e.target.value })); setError(""); };
+  const handle = (e) => { setForm((f) => ({ ...f, [e.target.name]: e.target.value })); setError(""); setUnverified(false); setResent(false); };
 
   const submit = async (e) => {
     e.preventDefault(); setError("");
@@ -24,8 +28,14 @@ export default function Login() {
       dispatch(setCredentials(data));
       navigate(from, { replace: true });
     } catch (err) {
+      setUnverified(err?.status === 403);
       setError(err?.data?.message || "Login failed. Please check your credentials.");
     }
+  };
+
+  const resend = async () => {
+    try { await resendVerification(form.email).unwrap(); setResent(true); setError(""); }
+    catch { setError("Could not resend the verification email. Please try again."); }
   };
 
   return (
@@ -47,6 +57,12 @@ export default function Login() {
           <p className="auth-subtitle">Sign in to your account to continue</p>
         </div>
         {error && <div className="auth-error"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><path d="M8 5v3.5M8 11h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>{error}</div>}
+        {unverified && !resent && (
+          <button type="button" className="auth-btn" style={{marginBottom:"1rem"}} onClick={resend} disabled={isResending || !form.email}>
+            {isResending?<span className="auth-btn-loading"><span className="auth-spinner"/>Sending…</span>:"Resend verification email"}
+          </button>
+        )}
+        {resent && <p className="auth-subtitle" style={{marginBottom:"1rem", display:"flex", alignItems:"center", gap:"0.4rem"}}><Icon name="check-circle" className="w-4 h-4" style={{color:"#10b981", flexShrink:0}} /><span>Verification email sent to <strong>{form.email}</strong> — check your inbox.</span></p>}
         <form onSubmit={submit} className="auth-form">
           <div className="auth-field">
             <label className="auth-label">Email address</label>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { selectCurrentUser, logout as logoutAction } from "../../features/auth/authSlice";
@@ -10,6 +10,7 @@ import { selectSidebarOpen } from "../../features/ui/uiSlice.js";
 import { resolveAssetUrl } from "../../utils/helpers.js";
 import { useToast } from "../common/Toast.jsx";
 import { disconnectSocket, getSocket } from "../../api/socket.js";
+import { Icon } from "../common/icons.jsx";
 
 export default function Navbar({ onMenuClick }) {
   const dispatch   = useDispatch();
@@ -27,18 +28,42 @@ export default function Navbar({ onMenuClick }) {
   const [respondInv]        = useRespondToInvitationMutation();
   const [respondAss]        = useRespondToAssignmentMutation();
   const [actionPending, setActionPending] = useState({});
+  const notifRef = useRef(null);
+  const dropRef  = useRef(null);
 
   const notifications = notifData?.data ?? notifData ?? [];
   const unread = Array.isArray(notifications) ? notifications.filter((n) => !n.is_read).length : 0;
 
-  // Real-time: refetch instantly when a new notification arrives over the socket,
-  // instead of waiting for the 30s poll.
+  // Real-time: refetch instantly when a new notification arrives over the socket
+  // (instead of waiting for the 30s poll) and pop up a toast with its content.
   useEffect(() => {
     const socket = getSocket();
-    const handleNew = () => refetchNotifs();
+    const handleNew = (n) => {
+      refetchNotifs();
+      toast({
+        message: n?.title ? `${n.title} — ${n.message}` : "You have a new notification",
+        type: "info",
+        duration: 5000,
+        onClick: () => {
+          if (n?.id) markAsRead(n.id);
+          if (n?.action_url) navigate(n.action_url);
+          else setNotifOpen(true); // no target — open the notification panel instead
+        },
+      });
+    };
     socket.on("notification:new", handleNew);
     return () => socket.off("notification:new", handleNew);
-  }, [refetchNotifs]);
+  }, [refetchNotifs, toast]);
+
+  // Close dropdowns when clicking outside them
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+      if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleLogout = async () => {
     try { await logoutApi().unwrap(); } catch {}
@@ -104,7 +129,7 @@ export default function Navbar({ onMenuClick }) {
 
       <div className="navbar-right">
         {/* Notifications */}
-        <div className="navbar-icon-wrap" style={{ position: "relative" }}>
+        <div ref={notifRef} className="navbar-icon-wrap" style={{ position: "relative" }}>
           <button
             className="navbar-icon-btn"
             onClick={() => { setNotifOpen((o) => !o); setDropOpen(false); }}
@@ -158,14 +183,18 @@ export default function Navbar({ onMenuClick }) {
                               disabled={!!actionPending[`${n.id}-accept`]}
                               className="px-3 py-1 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all disabled:opacity-50"
                             >
-                              {actionPending[`${n.id}-accept`] ? "…" : "✓ Accept"}
+                              {actionPending[`${n.id}-accept`] ? "…" : (
+                                <span className="inline-flex items-center gap-1"><Icon name="check" className="w-3 h-3" />Accept</span>
+                              )}
                             </button>
                             <button
                               onClick={(e) => handleAction(e, n, "reject")}
                               disabled={!!actionPending[`${n.id}-reject`]}
                               className="px-3 py-1 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all disabled:opacity-50"
                             >
-                              {actionPending[`${n.id}-reject`] ? "…" : "✕ Reject"}
+                              {actionPending[`${n.id}-reject`] ? "…" : (
+                                <span className="inline-flex items-center gap-1"><Icon name="x" className="w-3 h-3" />Reject</span>
+                              )}
                             </button>
                           </div>
                         )}
@@ -179,7 +208,7 @@ export default function Navbar({ onMenuClick }) {
         </div>
 
         {/* User dropdown */}
-        <div className="navbar-icon-wrap" style={{ position: "relative" }}>
+        <div ref={dropRef} className="navbar-icon-wrap" style={{ position: "relative" }}>
           <button
             className="navbar-avatar-btn"
             onClick={() => { setDropOpen((o) => !o); setNotifOpen(false); }}

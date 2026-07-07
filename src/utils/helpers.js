@@ -112,6 +112,27 @@ export const resolveAssetUrl = (assetPath) => {
 // cn helper (class name utility)
 export const cn = (...classes) => classes.filter(Boolean).join(" ");
 
+// Telegram-style chat timestamps
+export const formatTime = (dateStr) => {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleTimeString("en-US", {
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+};
+
+export const formatChatDate = (dateStr) => {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  const opts = { month: "long", day: "numeric" };
+  if (date.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return date.toLocaleDateString("en-US", opts);
+};
+
 // Format date + time
 export const formatDateTime = (dateStr) => {
   if (!dateStr) return "—";

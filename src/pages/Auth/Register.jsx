@@ -1,17 +1,14 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
+import { Link } from "react-router-dom";
 import { useRegisterMutation } from "../../features/auth/authApiSlice";
-import { setCredentials } from "../../features/auth/authSlice";
 import "./auth.css";
 
 export default function Register() {
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
   const [register, { isLoading }] = useRegisterMutation();
   const [form, setForm]   = useState({ name:"", email:"", password:"", confirm:"" });
   const [error, setError] = useState("");
   const [show, setShow]   = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   const handle = (e) => { setForm((f)=>({...f,[e.target.name]:e.target.value})); setError(""); };
 
@@ -27,13 +24,29 @@ export default function Register() {
     if (form.password !== form.confirm) return setError("Passwords do not match.");
     if (form.password.length < 8)       return setError("Password must be at least 8 characters.");
     try {
-      const data = await register({ name:form.name, email:form.email, password:form.password }).unwrap();
-      dispatch(setCredentials(data));
-      navigate("/");
+      await register({ name:form.name, email:form.email, password:form.password }).unwrap();
+      setRegistered(true);
     } catch (err) {
       setError(err?.data?.message || "Registration failed. Please try again.");
     }
   };
+
+  if (registered) {
+    return (
+      <div className="auth-page">
+        <div className="auth-bg"><div className="auth-orb auth-orb-1"/><div className="auth-orb auth-orb-2"/><div className="auth-grid"/></div>
+        <div className="auth-card">
+          <div className="auth-success-state">
+            <div className="auth-success-icon"><svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M5 14l7 7 11-11" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
+            <h2 className="auth-title">Verify your email</h2>
+            <p className="auth-subtitle">We sent a verification link to <strong>{form.email}</strong>. Click the link in the email to activate your account, then sign in.</p>
+            <Link to="/login" className="auth-btn" style={{display:"block",textAlign:"center",textDecoration:"none",marginTop:"1.5rem"}}>Go to sign in</Link>
+            <p className="auth-switch" style={{marginTop:"1rem"}}>Didn't get it? <Link to="/verify-email" className="auth-link">Resend the email</Link></p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-page">

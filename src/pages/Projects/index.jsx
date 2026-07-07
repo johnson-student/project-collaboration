@@ -8,6 +8,7 @@ import {
 import { StatusBadge, PriorityBadge, ProgressBar, AvatarGroup, Button, EmptyState, CardSkeleton } from "../../components/ui/index.jsx";
 import { formatDate } from "../../utils/helpers.js";
 import CreateProjectModal from "../../components/common/CreateProjectModal.jsx";
+import { ProjectIcon } from "../../components/common/icons.jsx";
 import EditProjectModal   from "../../components/common/EditProjectModal.jsx";
 
 const STATUS_FILTERS = ["All","Planning","In Progress","Review","Completed","On Hold"];
@@ -81,7 +82,7 @@ export default function Projects() {
           {[0,1,2,3,4,5].map((i) => <CardSkeleton key={i}/>)}
         </div>
       ) : filtered.length === 0 ? (
-        <EmptyState icon="📁" title="No projects found"
+        <EmptyState icon="folder" title="No projects found"
           description={search ? "Try adjusting your search or filters" : "Create your first project to get started"}
           action={<Button onClick={() => setCreateOpen(true)}>Create Project</Button>}/>
       ) : (
@@ -95,9 +96,9 @@ export default function Projects() {
                     className="rounded-2xl p-5 border border-white/6 hover:border-white/12 transition-all cursor-pointer h-full group"
                     style={{ background:"linear-gradient(145deg,#111827 0%,#0f172a 100%)" }}>
                     <div className="flex items-start justify-between mb-4">
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl"
-                        style={{ background:`${project.color}18`, border:`1px solid ${project.color}25` }}>
-                        {project.icon}
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center"
+                        style={{ background:`${project.color}18`, border:`1px solid ${project.color}25`, color: project.color || "#6366f1" }}>
+                        <ProjectIcon icon={project.icon} className="w-5 h-5" />
                       </div>
                       <div className="flex items-center gap-1.5">
                         <PriorityBadge priority={project.priority}/>

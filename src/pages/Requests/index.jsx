@@ -6,6 +6,7 @@ import { useGetMyInvitationsQuery, useRespondToInvitationMutation } from "../../
 import { useGetMyAssignmentRequestsQuery, useRespondToAssignmentMutation } from "../../features/assignments/assignmentApiSlice.js";
 import { Avatar } from "../../components/ui/index.jsx";
 import { formatDate } from "../../utils/helpers.js";
+import { Icon, ProjectIcon } from "../../components/common/icons.jsx";
 
 function StatusPill({ status }) {
   const cfg = {
@@ -40,10 +41,10 @@ function InvitationCard({ inv, onRespond }) {
       style={{ background: "#111827" }}
     >
       <div
-        className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0"
-        style={{ background: `${inv.project_color || "#6366f1"}18`, border: `1px solid ${inv.project_color || "#6366f1"}25` }}
+        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: `${inv.project_color || "#6366f1"}18`, border: `1px solid ${inv.project_color || "#6366f1"}25`, color: inv.project_color || "#6366f1" }}
       >
-        {inv.project_icon || "🚀"}
+        <ProjectIcon icon={inv.project_icon} className="w-5 h-5" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-3 mb-1">
@@ -61,14 +62,18 @@ function InvitationCard({ inv, onRespond }) {
               disabled={!!responding}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all disabled:opacity-50"
             >
-              {responding === "accept" ? "Accepting…" : "✓ Accept"}
+              {responding === "accept" ? "Accepting…" : (
+                <span className="inline-flex items-center gap-1"><Icon name="check" className="w-3 h-3" />Accept</span>
+              )}
             </button>
             <button
               onClick={() => handle("reject")}
               disabled={!!responding}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all disabled:opacity-50"
             >
-              {responding === "reject" ? "Rejecting…" : "✕ Reject"}
+              {responding === "reject" ? "Rejecting…" : (
+                <span className="inline-flex items-center gap-1"><Icon name="x" className="w-3 h-3" />Reject</span>
+              )}
             </button>
           </div>
         )}
@@ -107,8 +112,8 @@ function AssignmentCard({ req, onRespond }) {
           <StatusPill status={req.status} />
         </div>
         {req.project_name && (
-          <p className="text-xs text-slate-500 mb-1">
-            <span style={{ color: req.project_color }}>{req.project_icon}</span> {req.project_name}
+          <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+            <ProjectIcon icon={req.project_icon} className="w-3 h-3" style={{ color: req.project_color }} /> {req.project_name}
           </p>
         )}
         <p className="text-sm text-slate-400 mb-1">
@@ -129,14 +134,18 @@ function AssignmentCard({ req, onRespond }) {
               disabled={!!responding}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all disabled:opacity-50"
             >
-              {responding === "accept" ? "Accepting…" : "✓ Accept"}
+              {responding === "accept" ? "Accepting…" : (
+                <span className="inline-flex items-center gap-1"><Icon name="check" className="w-3 h-3" />Accept</span>
+              )}
             </button>
             <button
               onClick={() => handle("reject")}
               disabled={!!responding}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all disabled:opacity-50"
             >
-              {responding === "reject" ? "Rejecting…" : "✕ Reject"}
+              {responding === "reject" ? "Rejecting…" : (
+                <span className="inline-flex items-center gap-1"><Icon name="x" className="w-3 h-3" />Reject</span>
+              )}
             </button>
           </div>
         )}
@@ -217,7 +226,9 @@ export default function RequestsPage() {
             <div className="text-slate-500 text-sm">Loading…</div>
           ) : invitations.length === 0 ? (
             <div className="rounded-2xl p-12 border border-white/6 text-center" style={{ background: "#111827" }}>
-              <div className="w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mx-auto mb-4 text-2xl">📬</div>
+              <div className="w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mx-auto mb-4 text-brand-400">
+                <Icon name="inbox" className="w-6 h-6" />
+              </div>
               <p className="font-semibold text-white mb-1">No invitations</p>
               <p className="text-slate-500 text-sm">When someone invites you to a project, it will appear here.</p>
             </div>
@@ -237,7 +248,9 @@ export default function RequestsPage() {
             <div className="text-slate-500 text-sm">Loading…</div>
           ) : assignments.length === 0 ? (
             <div className="rounded-2xl p-12 border border-white/6 text-center" style={{ background: "#111827" }}>
-              <div className="w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mx-auto mb-4 text-2xl">📋</div>
+              <div className="w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mx-auto mb-4 text-brand-400">
+                <Icon name="clipboard" className="w-6 h-6" />
+              </div>
               <p className="font-semibold text-white mb-1">No task assignments</p>
               <p className="text-slate-500 text-sm">When someone assigns a task to you, it will appear here.</p>
             </div>

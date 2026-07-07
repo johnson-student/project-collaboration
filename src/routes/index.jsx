@@ -4,6 +4,7 @@ import AppLayout       from "../components/layout/AppLayout";
 import Login           from "../pages/Auth/Login";
 import Register        from "../pages/Auth/Register";
 import ForgotPassword  from "../pages/Auth/ForgotPassword";
+import VerifyEmail     from "../pages/Auth/VerifyEmail";
 import Dashboard       from "../pages/Dashboard";
 import Projects        from "../pages/Projects";
 import ProjectDetails  from "../pages/Projects/ProjectDetails";
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
   { path: "/login",           element: <Login /> },
   { path: "/register",        element: <Register /> },
   { path: "/forgot-password", element: <ForgotPassword /> },
+  { path: "/verify-email",    element: <VerifyEmail /> },
   {
     path: "/",
     element: <ProtectedRoute><AppLayout /></ProtectedRoute>,
@@ -26,6 +28,7 @@ const router = createBrowserRouter([
       { path: "projects",        element: <Projects /> },
       { path: "projects/:id",    element: <ProjectDetails /> },
       { path: "tasks",           element: <Tasks /> },
+      { path: "tasks/:taskId",   element: <Tasks /> },
       { path: "kanban",          element: <Kanban /> },
       { path: "team",            element: <TeamMembers /> },
       { path: "requests",        element: <Requests /> },

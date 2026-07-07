@@ -15,8 +15,8 @@ import { useGetProjectFilesQuery, useUploadProjectFileMutation, useDeleteProject
 import { useGetProjectActivityQuery } from "../../features/activity/activityApiSlice.js";
 import {
   useGetTasksQuery, useCreateTaskMutation, useUpdateTaskMutation,
-  useDeleteTaskMutation, useMoveTaskMutation,
-  useGetTaskByIdQuery, useAddCommentMutation, useEditCommentMutation, useDeleteCommentMutation,
+  useDeleteTaskMutation, useMoveTaskMutation, useCreateSubtaskMutation,
+  useGetTaskByIdQuery,
 } from "../../features/tasks/taskApiSlice.js";
 import { StatusBadge, PriorityBadge, ProgressBar, Avatar, TagBadge, Skeleton } from "../../components/ui/index.jsx";
 import { formatDate, formatDateTime, resolveAssetUrl, cn } from "../../utils/helpers.js";
@@ -24,25 +24,30 @@ import { selectCurrentUser } from "../../features/auth/authSlice.js";
 import MemberPicker from "../../components/common/MemberPicker.jsx";
 import EditProjectModal from "../../components/common/EditProjectModal.jsx";
 import EditTaskModal from "../../components/common/EditTaskModal.jsx";
+import SubtaskList from "../../components/common/SubtaskList.jsx";
+import SubtaskDraftField from "../../components/common/SubtaskDraftField.jsx";
+import TaskComments from "../../components/common/TaskComments.jsx";
 import ChatPanel from "../../components/common/ChatPanel.jsx";
 import "../../components/common/MemberPicker.css";
 import "../../components/common/modal.css";
 import { apiBaseUrl, getStoredAccessToken } from "../../api/authSession.js";
+import { Icon, ProjectIcon } from "../../components/common/icons.jsx";
 
 const COLUMNS = ["Todo", "In Progress", "Review", "Done"];
 
 // ── Activity icon map ─────────────────────────────────────
 const activityIcons = {
-  project_created:  { icon: "🚀", color: "#6366f1" },
-  member_invited:   { icon: "📨", color: "#8b5cf6" },
-  member_joined:    { icon: "🎉", color: "#10b981" },
-  member_removed:   { icon: "👋", color: "#ef4444" },
-  task_created:     { icon: "✅", color: "#06b6d4" },
-  task_assigned:    { icon: "📋", color: "#f59e0b" },
-  task_completed:   { icon: "🏆", color: "#10b981" },
-  file_uploaded:    { icon: "📎", color: "#6366f1" },
-  file_deleted:     { icon: "🗑️", color: "#ef4444" },
-  comment_added:    { icon: "💬", color: "#8b5cf6" },
+  project_created:  { icon: "rocket",       color: "#6366f1" },
+  member_invited:   { icon: "mail",         color: "#8b5cf6" },
+  member_joined:    { icon: "sparkles",     color: "#10b981" },
+  member_removed:   { icon: "hand",         color: "#ef4444" },
+  task_created:     { icon: "check-circle", color: "#06b6d4" },
+  task_assigned:    { icon: "clipboard",    color: "#f59e0b" },
+  task_completed:   { icon: "trophy",       color: "#10b981" },
+  task_deleted:     { icon: "trash",        color: "#ef4444" },
+  file_uploaded:    { icon: "paperclip",    color: "#6366f1" },
+  file_deleted:     { icon: "trash",        color: "#ef4444" },
+  comment_added:    { icon: "message",      color: "#8b5cf6" },
 };
 
 function formatFileSize(bytes) {
@@ -51,122 +56,6 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// ── Task Comment Section ──────────────────────────────────
-function TaskComments({ task, currentUser }) {
-  const toast = useToast();
-  const [newComment, setNewComment] = useState("");
-  const [editingId, setEditingId] = useState(null);
-  const [editText, setEditText] = useState("");
-  const [addComment,    { isLoading: adding }]   = useAddCommentMutation();
-  const [editComment,   { isLoading: editing }]  = useEditCommentMutation();
-  const [deleteComment, { isLoading: deleting }] = useDeleteCommentMutation();
-
-  const comments = task.comments ?? [];
-
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
-    try {
-      await addComment({ taskId: task.id, comment: newComment.trim() }).unwrap();
-      setNewComment("");
-    } catch (err) {
-      toast({ message: err?.data?.message || "Failed to add comment", type: "error" });
-    }
-  };
-
-  const handleEdit = async (commentId) => {
-    if (!editText.trim()) return;
-    try {
-      await editComment({ taskId: task.id, commentId, comment: editText.trim() }).unwrap();
-      setEditingId(null);
-    } catch (err) {
-      toast({ message: err?.data?.message || "Failed to edit comment", type: "error" });
-    }
-  };
-
-  const handleDelete = async (commentId) => {
-    if (!window.confirm("Delete this comment?")) return;
-    try {
-      await deleteComment({ taskId: task.id, commentId }).unwrap();
-    } catch (err) {
-      toast({ message: err?.data?.message || "Failed to delete comment", type: "error" });
-    }
-  };
-
-  return (
-    <div className="mt-4">
-      <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4 text-slate-500">
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-        </svg>
-        Comments ({comments.length})
-      </h4>
-      <div className="space-y-3 mb-3 max-h-64 overflow-y-auto">
-        {comments.map(c => (
-          <div key={c.id} className="flex gap-3 group">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5"
-              style={{ backgroundColor: c.color || "#6366f1" }}
-            >
-              {c.initials}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-semibold text-slate-300">{c.user_name}</span>
-                <span className="text-xs text-slate-600">{formatDateTime(c.created_at)}</span>
-                {c.updated_at !== c.created_at && <span className="text-xs text-slate-700">(edited)</span>}
-              </div>
-              {editingId === c.id ? (
-                <div className="space-y-2">
-                  <textarea
-                    className="mf-input w-full text-sm resize-none"
-                    rows={2}
-                    value={editText}
-                    onChange={e => setEditText(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <button onClick={() => handleEdit(c.id)} disabled={editing} className="px-3 py-1 rounded text-xs font-semibold bg-brand-500/20 text-brand-300 hover:bg-brand-500/30 transition-all disabled:opacity-50">
-                      {editing ? "Saving…" : "Save"}
-                    </button>
-                    <button onClick={() => setEditingId(null)} className="px-3 py-1 rounded text-xs font-semibold text-slate-500 hover:text-slate-300 transition-all">Cancel</button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-slate-400 break-words">{c.body}</p>
-              )}
-            </div>
-            {c.user_id === currentUser?.id && editingId !== c.id && (
-              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={() => { setEditingId(c.id); setEditText(c.body); }} className="w-6 h-6 rounded flex items-center justify-center text-slate-600 hover:text-brand-400 transition-all">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </button>
-                <button onClick={() => handleDelete(c.id)} disabled={deleting} className="w-6 h-6 rounded flex items-center justify-center text-slate-600 hover:text-red-400 transition-all disabled:opacity-50">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
-                    <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
-                  </svg>
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-        {comments.length === 0 && <p className="text-xs text-slate-600 italic">No comments yet.</p>}
-      </div>
-      <form onSubmit={handleAdd} className="flex gap-2">
-        <input
-          className="mf-input flex-1 text-sm"
-          placeholder="Add a comment…"
-          value={newComment}
-          onChange={e => setNewComment(e.target.value)}
-        />
-        <button type="submit" disabled={adding || !newComment.trim()} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/30 hover:bg-brand-500/30 transition-all disabled:opacity-50">
-          {adding ? "…" : "Post"}
-        </button>
-      </form>
-    </div>
-  );
-}
 
 // ── Task Detail Slide-over ────────────────────────────────
 function TaskDetailModal({ taskId, onClose, currentUser }) {
@@ -187,7 +76,10 @@ function TaskDetailModal({ taskId, onClose, currentUser }) {
               {task.due_date && <span className="text-xs text-slate-500">Due {formatDate(task.due_date)}</span>}
             </div>
             {task.description && <p className="text-sm text-slate-400 mb-4">{task.description}</p>}
-            <TaskComments task={task} currentUser={currentUser} />
+            <div className="mb-4">
+              <SubtaskList taskId={task.id} />
+            </div>
+            <TaskComments taskId={task.id} currentUser={currentUser} />
           </div>
         )}
       </div>
@@ -246,14 +138,14 @@ function FilesSection({ projectId, canManage, currentUserId, projectRole }) {
   };
 
   const fileIcon = (mime) => {
-    if (mime?.includes("image")) return "🖼️";
-    if (mime?.includes("pdf")) return "📄";
-    if (mime?.includes("spreadsheet") || mime?.includes("excel")) return "📊";
-    if (mime?.includes("word") || mime?.includes("document")) return "📝";
-    if (mime?.includes("zip") || mime?.includes("tar") || mime?.includes("rar")) return "📦";
-    if (mime?.includes("video")) return "🎬";
-    if (mime?.includes("audio")) return "🎵";
-    return "📎";
+    if (mime?.includes("image")) return "image";
+    if (mime?.includes("pdf")) return "file-text";
+    if (mime?.includes("spreadsheet") || mime?.includes("excel")) return "chart";
+    if (mime?.includes("word") || mime?.includes("document")) return "file-text";
+    if (mime?.includes("zip") || mime?.includes("tar") || mime?.includes("rar")) return "archive";
+    if (mime?.includes("video")) return "film";
+    if (mime?.includes("audio")) return "music";
+    return "paperclip";
   };
 
   return (
@@ -299,7 +191,7 @@ function FilesSection({ projectId, canManage, currentUserId, projectRole }) {
             const canDelete = f.uploader_id === currentUserId || ["Owner", "Admin"].includes(projectRole);
             return (
               <div key={f.id} className={`flex items-center gap-3 px-4 py-3 hover:bg-white/2 transition-all group ${idx !== 0 ? "border-t border-white/4" : ""}`}>
-                <span className="text-xl shrink-0">{fileIcon(f.mime_type)}</span>
+                <span className="shrink-0 text-slate-400"><Icon name={fileIcon(f.mime_type)} className="w-5 h-5" /></span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-slate-200 font-medium truncate">{f.original_name}</p>
                   <p className="text-xs text-slate-600">{formatFileSize(f.size_bytes)} · Uploaded by {f.uploader_name} · {formatDate(f.created_at)}</p>
@@ -369,14 +261,14 @@ function ActivityTimeline({ projectId }) {
     <div className="rounded-2xl border border-white/6 overflow-hidden" style={{ background: "#111827" }}>
       <div className="divide-y divide-white/4">
         {activities.map((a) => {
-          const cfg = activityIcons[a.event_type] || { icon: "📌", color: "#6366f1" };
+          const cfg = activityIcons[a.event_type] || { icon: "pin", color: "#6366f1" };
           return (
             <div key={a.id} className="flex items-start gap-3 px-4 py-3">
               <div
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0 mt-0.5"
-                style={{ background: `${cfg.color}18`, border: `1px solid ${cfg.color}25` }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                style={{ background: `${cfg.color}18`, border: `1px solid ${cfg.color}25`, color: cfg.color }}
               >
-                {cfg.icon}
+                <Icon name={cfg.icon} className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-slate-300">{a.description}</p>
@@ -440,6 +332,7 @@ export default function ProjectDetails() {
   const { data: tasksRes = {}, isLoading: tasksLoading } = useGetTasksQuery({ projectId: id });
   const [removeMember] = useRemoveProjectMemberMutation();
   const [createTask, { isLoading: creating }] = useCreateTaskMutation();
+  const [createSubtask] = useCreateSubtaskMutation();
   const [updateTask]  = useUpdateTaskMutation();
   const [deleteTask]  = useDeleteTaskMutation();
   const [deleteProject, { isLoading: deletingProject }] = useDeleteProjectMutation();
@@ -459,6 +352,7 @@ export default function ProjectDetails() {
   const [addError, setAddError] = useState("");
   const [taskForm, setTaskForm] = useState({ title: "", description: "", priority: "Medium", status: "Todo", dueDate: "", tags: "", assignee: null });
   const [taskError, setTaskError] = useState("");
+  const [draftSubtasks, setDraftSubtasks] = useState([]);
 
   if (isLoading) return (
     <div className="space-y-6">
@@ -493,20 +387,46 @@ export default function ProjectDetails() {
     refetchMembers();
   };
 
+  const closeTaskModal = () => {
+    setTaskOpen(false);
+    setDraftSubtasks([]);
+    setTaskError("");
+  };
+
   const handleCreateTask = async (e) => {
     e.preventDefault();
     setTaskError("");
     if (!taskForm.title.trim()) return setTaskError("Title is required.");
     try {
-      await createTask({
+      const newTask = await createTask({
         title: taskForm.title, description: taskForm.description || undefined,
         priority: taskForm.priority, status: taskForm.status,
         dueDate: taskForm.dueDate || undefined, projectId: Number(id),
         assigneeId: taskForm.assignee?.id || undefined,
         tags: taskForm.tags ? taskForm.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined,
       }).unwrap();
+      // Subtasks need the parent task's id, so they're created right after it
+      if (newTask?.id && draftSubtasks.length > 0) {
+        for (const s of draftSubtasks) {
+          try {
+            await createSubtask({
+              taskId: newTask.id,
+              title: s.title,
+              description: s.description || null,
+              priority: s.priority,
+              dueDate: s.dueDate || null,
+            }).unwrap();
+          } catch {
+            toast({ message: `Couldn't add subtask "${s.title}"`, type: "error" });
+          }
+        }
+      }
       setTaskForm({ title: "", description: "", priority: "Medium", status: "Todo", dueDate: "", tags: "", assignee: null });
+      setDraftSubtasks([]);
       setTaskOpen(false);
+      // Open the task's detail modal right away so the new subtasks are visible
+      // and more can be added.
+      if (newTask?.id) setSelectedTaskId(newTask.id);
     } catch (err) {
       setTaskError(err?.data?.message || "Failed to create task.");
     }
@@ -546,9 +466,9 @@ export default function ProjectDetails() {
         className="rounded-2xl p-6 border border-white/6" style={{ background: "linear-gradient(135deg,#111827 0%,#0f172a 100%)" }}>
         <div className="flex items-start justify-between mb-5">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
-              style={{ background: `${project.color}18`, border: `1px solid ${project.color}25` }}>
-              {project.icon}
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+              style={{ background: `${project.color}18`, border: `1px solid ${project.color}25`, color: project.color || "#6366f1" }}>
+              <ProjectIcon icon={project.icon} className="w-6 h-6" />
             </div>
             <div>
               <h1 className="font-display font-bold text-white text-2xl">{project.name}</h1>
@@ -648,6 +568,14 @@ export default function ProjectDetails() {
                              onClick={() => setSelectedTaskId(task.id)}
                            >
                              <p className="text-sm text-slate-300 font-medium leading-snug mb-2 pr-12">{task.title}</p>
+                             {(task.subtask_total || 0) > 0 && (
+                               <div className="flex items-center gap-2 mb-2">
+                                 <ProgressBar value={Math.round((task.subtask_done / task.subtask_total) * 100)} className="flex-1" />
+                                 <span className="text-[10px] font-semibold text-slate-500 shrink-0">
+                                   {task.subtask_done}/{task.subtask_total}
+                                 </span>
+                               </div>
+                             )}
                              <div className="flex items-center justify-between">
                                <PriorityBadge priority={task.priority} />
                                {assignee && <Avatar user={assignee} size="sm" />}
@@ -770,11 +698,11 @@ export default function ProjectDetails() {
 
       {/* Create Task Modal */}
       {taskOpen && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setTaskOpen(false)}>
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && closeTaskModal()}>
           <div className="modal-box">
             <div className="modal-header">
               <h2 className="modal-title">Add Task to {project.name}</h2>
-              <button type="button" className="modal-close" onClick={() => setTaskOpen(false)}>×</button>
+              <button type="button" className="modal-close" onClick={closeTaskModal}>×</button>
             </div>
             <form onSubmit={handleCreateTask} className="modal-form">
               {taskError && <div className="modal-error">{taskError}</div>}
@@ -811,6 +739,7 @@ export default function ProjectDetails() {
                 <input className="mf-input" placeholder="frontend, bug, api…" value={taskForm.tags}
                   onChange={e => setTaskForm(f => ({ ...f, tags: e.target.value }))} />
               </div>
+              <SubtaskDraftField drafts={draftSubtasks} onChange={setDraftSubtasks} />
               <div className="mf-field">
                 <label className="mf-label">Assignee (must be a project member)</label>
                 <MemberPicker projectId={id} scope="project-members" currentUserId={currentUser?.id} single
@@ -818,7 +747,7 @@ export default function ProjectDetails() {
                   onChange={arr => setTaskForm(f => ({ ...f, assignee: arr[0] ?? null }))} placeholder="Select member…" />
               </div>
               <div className="modal-actions">
-                <button type="button" className="btn-ghost" onClick={() => setTaskOpen(false)}>Cancel</button>
+                <button type="button" className="btn-ghost" onClick={closeTaskModal}>Cancel</button>
                 <button type="submit" className="btn-primary" disabled={creating}>{creating ? "Creating…" : "Create Task"}</button>
               </div>
             </form>

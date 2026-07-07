@@ -9,6 +9,7 @@ import { formatDate, isOverdue } from "../../utils/helpers.js";
 import { selectCurrentUser } from "../../features/auth/authSlice.js";
 import EditTaskModal from "../../components/common/EditTaskModal.jsx";
 import "../../components/common/modal.css";
+import { Icon, ProjectIcon } from "../../components/common/icons.jsx";
 
 const COLUMNS = [
   { id:"Todo",        label:"To Do",       color:"#64748b", dotColor:"bg-slate-500" },
@@ -98,7 +99,7 @@ export default function Kanban() {
           {projects.map((p) => (
             <button key={p.id} onClick={() => setProjectFilter(String(p.id))}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${projectFilter===String(p.id) ? "bg-brand-500/20 text-brand-300 border border-brand-500/30" : "text-slate-500 hover:text-slate-300 hover:bg-white/6 border border-transparent"}`}>
-              <span>{p.icon}</span>{p.name}
+              <ProjectIcon icon={p.icon} className="w-3.5 h-3.5" />{p.name}
             </button>
           ))}
         </div>
@@ -148,7 +149,7 @@ export default function Kanban() {
                           className={`rounded-xl p-3 border cursor-grab active:cursor-grabbing transition-all group relative ${isDragging ? "opacity-40 border-brand-500/30" : "border-white/6 hover:border-white/14 bg-white/3 hover:bg-white/5"}`}>
                           {project && (
                             <div className="flex items-center gap-1.5 mb-2">
-                              <span className="text-xs">{project.icon}</span>
+                              <ProjectIcon icon={project.icon} className="w-3 h-3" style={{ color: project.color }} />
                               <span className="text-[10px] font-semibold" style={{ color:project.color }}>{project.name}</span>
                             </div>
                           )}
@@ -172,8 +173,9 @@ export default function Kanban() {
                           <div className="flex items-center justify-between mt-2">
                             <PriorityBadge priority={task.priority}/>
                             <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-medium ${overdue ? "text-red-400" : "text-slate-600"}`}>
-                                {overdue ? "⚠ " : ""}{formatDate(task.due_date ?? task.dueDate)}
+                              <span className={`text-[10px] font-medium inline-flex items-center gap-1 ${overdue ? "text-red-400" : "text-slate-600"}`}>
+                                {overdue && <Icon name="warning" className="w-3 h-3" />}
+                                {formatDate(task.due_date ?? task.dueDate)}
                               </span>
                               {assignee && <Avatar user={assignee} size="sm"/>}
                             </div>

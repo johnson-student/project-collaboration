@@ -6,6 +6,7 @@ import { useUpdateUserMutation } from "../../features/users/userApiSlice.js";
 import { selectCurrentUser } from "../../features/auth/authSlice.js";
 import { Button } from "../../components/ui/index.jsx";
 import { Input, Select } from "../../components/forms/index.jsx";
+import { Icon } from "../../components/common/icons.jsx";
 
 function SettingSection({ title, description, children }) {
   return (
@@ -98,7 +99,7 @@ export default function Settings() {
         <SettingSection title="Change Password" description="Update your login credentials">
           <form onSubmit={handleChangePassword} className="space-y-4">
             {pwError && <div className="text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-2">{pwError}</div>}
-            {pwSaved && <div className="text-xs text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded-lg px-3 py-2">✓ Password changed successfully</div>}
+            {pwSaved && <div className="text-xs text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded-lg px-3 py-2 flex items-center gap-1.5"><Icon name="check" className="w-3.5 h-3.5" />Password changed successfully</div>}
             <Input label="Current Password" type="password" placeholder="••••••••" value={pwForm.current} onChange={(e) => setPwForm({...pwForm, current:e.target.value})}/>
             <Input label="New Password"     type="password" placeholder="Min. 8 characters" value={pwForm.newPw} onChange={(e) => setPwForm({...pwForm, newPw:e.target.value})}/>
             <Input label="Confirm Password" type="password" placeholder="Repeat new password" value={pwForm.confirm} onChange={(e) => setPwForm({...pwForm, confirm:e.target.value})}/>
@@ -121,7 +122,7 @@ export default function Settings() {
 
       {/* Save */}
       <div className="flex items-center justify-end gap-3 pt-2">
-        {settingsSaved && <motion.span initial={{ opacity:0 }} animate={{ opacity:1 }} className="text-xs text-emerald-400 font-semibold">✓ Settings saved</motion.span>}
+        {settingsSaved && <motion.span initial={{ opacity:0 }} animate={{ opacity:1 }} className="text-xs text-emerald-400 font-semibold inline-flex items-center gap-1"><Icon name="check" className="w-3.5 h-3.5" />Settings saved</motion.span>}
         <Button onClick={handleSaveSettings}>Save Settings</Button>
       </div>
     </div>

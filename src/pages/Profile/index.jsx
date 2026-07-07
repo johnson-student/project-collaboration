@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { Icon, ProjectIcon } from "../../components/common/icons.jsx";
 import { useSelector, useDispatch } from "react-redux";
 import {
   selectCurrentUser,
@@ -151,9 +152,9 @@ export default function Profile() {
                 <motion.span
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-xs text-emerald-400 bg-emerald-400/10 px-3 py-2 rounded-xl font-semibold"
+                  className="text-xs text-emerald-400 bg-emerald-400/10 px-3 py-2 rounded-xl font-semibold inline-flex items-center gap-1"
                 >
-                  ✓ Saved
+                  <Icon name="check" className="w-3 h-3" /> Saved
                 </motion.span>
               )}
               {editing ? (
@@ -297,13 +298,14 @@ export default function Profile() {
             {myProjects.slice(0, 5).map((p) => (
               <div key={p.id} className="flex items-center gap-3">
                 <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
                   style={{
                     background: `${p.color}18`,
                     border: `1px solid ${p.color}25`,
+                    color: p.color || "#6366f1",
                   }}
                 >
-                  {p.icon}
+                  <ProjectIcon icon={p.icon} className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">

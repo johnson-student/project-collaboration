@@ -4,6 +4,7 @@ import { useCreateProjectMutation } from "../../features/projects/projectApiSlic
 import { selectCurrentUser } from "../../features/auth/authSlice.js";
 import MemberPicker from "./MemberPicker";
 import "./MemberPicker.css";
+import { Icon, PROJECT_ICON_NAMES } from "./icons.jsx";
 
 const COLORS = [
   "#6366f1",
@@ -14,21 +15,6 @@ const COLORS = [
   "#f59e0b",
   "#ef4444",
 ];
-const ICONS = [
-  "🚀",
-  "💡",
-  "🎯",
-  "📊",
-  "🔧",
-  "🎨",
-  "📱",
-  "🌐",
-  "⚡",
-  "🔬",
-  "📚",
-  "🎮",
-];
-
 export default function CreateProjectModal({ onClose, onCreated }) {
   const [createProject, { isLoading }] = useCreateProjectMutation();
   const currentUser = useSelector(selectCurrentUser);
@@ -39,7 +25,7 @@ export default function CreateProjectModal({ onClose, onCreated }) {
     priority: "Medium",
     deadline: "",
     color: "#6366f1",
-    icon: "🚀",
+    icon: "rocket",
     category: "General",
   });
   const [members, setMembers] = useState([]); // array of user objects
@@ -82,33 +68,37 @@ export default function CreateProjectModal({ onClose, onCreated }) {
 
         <form onSubmit={submit} className="modal-form">
           {/* Name */}
-          <div className="mf-row">
-            <div className="mf-field mf-field-grow">
-              <label className="mf-label">Project name *</label>
-              <input
-                name="name"
-                required
-                className="mf-input"
-                placeholder="e.g. Mobile App Redesign"
-                value={form.name}
-                onChange={handle}
-              />
-            </div>
-            {/* Icon picker */}
-            <div className="mf-field">
-              <label className="mf-label">Icon</label>
-              <select
-                name="icon"
-                className="mf-input mf-select"
-                value={form.icon}
-                onChange={handle}
-              >
-                {ICONS.map((ic) => (
-                  <option key={ic} value={ic}>
-                    {ic}
-                  </option>
-                ))}
-              </select>
+          <div className="mf-field">
+            <label className="mf-label">Project name *</label>
+            <input
+              name="name"
+              required
+              className="mf-input"
+              placeholder="e.g. Mobile App Redesign"
+              value={form.name}
+              onChange={handle}
+            />
+          </div>
+
+          {/* Icon picker */}
+          <div className="mf-field">
+            <label className="mf-label">Icon</label>
+            <div className="flex flex-wrap gap-1.5">
+              {PROJECT_ICON_NAMES.map((ic) => (
+                <button
+                  key={ic}
+                  type="button"
+                  title={ic}
+                  onClick={() => setForm((f) => ({ ...f, icon: ic }))}
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-all ${
+                    form.icon === ic
+                      ? "bg-brand-500/20 border-brand-500/40 text-brand-300"
+                      : "border-white/10 text-slate-500 hover:text-slate-300 hover:border-white/20"
+                  }`}
+                >
+                  <Icon name={ic} className="w-4 h-4" />
+                </button>
+              ))}
             </div>
           </div>
 

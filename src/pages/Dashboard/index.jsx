@@ -6,6 +6,7 @@ import { useGetTasksQuery } from "../../features/tasks/taskApiSlice.js";
 import { selectCurrentUser } from "../../features/auth/authSlice.js";
 import { StatCard, StatusBadge, PriorityBadge, ProgressBar, AvatarGroup, CardSkeleton } from "../../components/ui/index.jsx";
 import { formatDate } from "../../utils/helpers.js";
+import { Icon, ProjectIcon } from "../../components/common/icons.jsx";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
@@ -34,8 +35,9 @@ export default function Dashboard() {
     <div className="space-y-8">
       <motion.div initial={{ opacity:0, y:-10 }} animate={{ opacity:1, y:0 }} className="flex items-center justify-between">
         <div>
-          <h2 className="font-display font-bold text-2xl text-white">
-            Good morning, {currentUser?.name?.split(" ")[0]} 👋
+          <h2 className="font-display font-bold text-2xl text-white flex items-center gap-2">
+            Good morning, {currentUser?.name?.split(" ")[0]}
+            <Icon name="hand" className="w-5 h-5 text-amber-300" />
           </h2>
           <p className="text-slate-500 mt-1">Here's what's happening across your projects today.</p>
         </div>
@@ -77,9 +79,9 @@ export default function Dashboard() {
                     <div className="rounded-2xl p-4 border border-white/6 hover:border-white/12 transition-all group cursor-pointer" style={{ background:"#111827" }}>
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                            style={{ background:`${project.color}18`, border:`1px solid ${project.color}30` }}>
-                            {project.icon}
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{ background:`${project.color}18`, border:`1px solid ${project.color}30`, color: project.color || "#6366f1" }}>
+                            <ProjectIcon icon={project.icon} className="w-5 h-5" />
                           </div>
                           <div>
                             <p className="font-semibold text-slate-200 text-sm group-hover:text-white transition-colors">{project.name}</p>
