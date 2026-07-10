@@ -10,6 +10,7 @@ import { assignmentApiSlice }    from "../features/assignments/assignmentApiSlic
 import { fileApiSlice }          from "../features/files/fileApiSlice";
 import { activityApiSlice }      from "../features/activity/activityApiSlice";
 import { chatApiSlice }          from "../features/chat/chatApiSlice";
+import { aiChatApiSlice }        from "../features/ai/aiChatApiSlice";
 import uiReducer                 from "../features/ui/uiSlice";
 
 export const store = configureStore({
@@ -25,6 +26,7 @@ export const store = configureStore({
     [fileApiSlice.reducerPath]:         fileApiSlice.reducer,
     [activityApiSlice.reducerPath]:     activityApiSlice.reducer,
     [chatApiSlice.reducerPath]:         chatApiSlice.reducer,
+    [aiChatApiSlice.reducerPath]:       aiChatApiSlice.reducer,
     ui:                                uiReducer,
   },
   middleware: (gDM) =>
@@ -39,5 +41,6 @@ export const store = configureStore({
       fileApiSlice.middleware,
       activityApiSlice.middleware,
       chatApiSlice.middleware,
+      aiChatApiSlice.middleware,
     ),
 });

@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useDispatch } from "react-redux";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "./Toast.jsx";
 import { getSocket } from "../../api/socket.js";
-import { formatTime, formatChatDate } from "../../utils/helpers.js";
+import { formatTime, formatChatDate, resolveAssetUrl } from "../../utils/helpers.js";
 import { Icon } from "./icons.jsx";
 import {
   useGetProjectMessagesQuery,
@@ -10,11 +11,92 @@ import {
   useEditMessageMutation,
   useDeleteMessageMutation,
 } from "../../features/chat/chatApiSlice.js";
+import { fileApiSlice } from "../../features/files/fileApiSlice.js";
 
 const TYPING_TIMEOUT_MS = 2500;
 
+// Matches http(s) URLs and bare www. links, excluding trailing punctuation
+const URL_REGEX = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,:;"')\]!?])/g;
+
+// Split on the capturing group: odd indices are the matched URLs
+function linkify(text) {
+  return String(text).split(URL_REGEX).map((part, i) =>
+    i % 2 === 1 ? (
+      <a
+        key={i}
+        href={part.startsWith("www.") ? `https://${part}` : part}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="underline decoration-brand-400/50 text-brand-300 hover:text-brand-200 break-all"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+const attachmentUrl = (m) => resolveAssetUrl(`/uploads/project-files/${m.attachment_stored_name}`);
+
+function downloadAttachment(m, onError) {
+  fetch(attachmentUrl(m))
+    .then((r) => (r.ok ? r.blob() : Promise.reject()))
+    .then((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = m.attachment_name;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    })
+    .catch(() => onError?.());
+}
+
+function MessageAttachment({ m, onError }) {
+  const isImage = m.attachment_mime?.startsWith("image/");
+  if (isImage) {
+    return (
+      <img
+        src={attachmentUrl(m)}
+        alt={m.attachment_name}
+        loading="lazy"
+        onClick={() => window.open(attachmentUrl(m), "_blank", "noopener")}
+        className="rounded-lg max-h-48 max-w-full object-cover cursor-zoom-in block mb-1"
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => downloadAttachment(m, onError)}
+      title="Download"
+      className="flex items-center gap-2 w-full rounded-lg bg-black/20 hover:bg-black/30 transition-all px-2.5 py-2 mb-1 text-left"
+    >
+      <span className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0 text-slate-300">
+        <Icon name="paperclip" className="w-4 h-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-xs font-semibold text-slate-200 truncate">{m.attachment_name}</span>
+        <span className="block text-[10px] text-slate-400">{formatFileSize(m.attachment_size)}</span>
+      </span>
+    </button>
+  );
+}
+
 export default function ChatPanel({ projectId, currentUser, projectRole }) {
   const toast = useToast();
+  const dispatch = useDispatch();
   const { data: history = [], isLoading } = useGetProjectMessagesQuery(
     { projectId },
     { refetchOnMountOrArgChange: true }
@@ -25,6 +107,8 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
 
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
+  const [attachment, setAttachment] = useState(null); // File pending upload
+  const [attachmentPreview, setAttachmentPreview] = useState(null); // blob: url for images
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
@@ -32,8 +116,30 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
   const [joined, setJoined] = useState(false);
 
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
   const typingTimers = useRef({});
   const lastTypingEmit = useRef(0);
+
+  const pickAttachment = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ message: "File is too large (max 50 MB)", type: "error" });
+      return;
+    }
+    if (attachmentPreview) URL.revokeObjectURL(attachmentPreview);
+    setAttachment(file);
+    setAttachmentPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+  };
+
+  const clearAttachment = useCallback(() => {
+    setAttachment(null);
+    setAttachmentPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, []);
 
   // Seed local message list from REST history; keep any live socket
   // messages that arrived while the (re)fetch was in flight
@@ -132,13 +238,19 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
   const handleSend = async (e) => {
     e.preventDefault();
     const body = draft.trim();
-    if (!body || sending) return;
+    const file = attachment;
+    if ((!body && !file) || sending) return;
     setSending(true);
     setDraft("");
     try {
-      await sendMessage({ projectId, body }).unwrap();
+      await sendMessage({ projectId, body, file }).unwrap();
       // The socket "chat:message" broadcast (including to the sender) appends it —
       // no manual append here to avoid duplicates.
+      if (file) {
+        clearAttachment();
+        // Chat uploads are registered as project files — refresh the Files tab
+        dispatch(fileApiSlice.util.invalidateTags([{ type: "ProjectFile", id: projectId }]));
+      }
     } catch (err) {
       toast({ message: err?.data?.message || "Failed to send message", type: "error" });
       setDraft(body); // restore on failure
@@ -298,13 +410,19 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
                       </div>
                     ) : (
                       <div className={`flex items-center gap-1 ${isOwn ? "flex-row-reverse" : ""}`}>
-                        <p className={`text-sm break-words whitespace-pre-wrap px-3 py-1.5 inline-block max-w-xs text-left ${isOwn ? `bg-brand-500/40 text-slate-100 rounded-l-2xl rounded-br-md ${groupStart ? "rounded-tr-2xl" : "rounded-tr-md"}` : `bg-white/6 text-slate-300 rounded-r-2xl rounded-bl-md ${groupStart ? "rounded-tl-2xl" : "rounded-tl-md"}`}`}>
-                          {m.body}
+                        <div className={`text-sm break-words px-3 py-1.5 inline-block max-w-xs text-left ${isOwn ? `bg-brand-500/40 text-slate-100 rounded-l-2xl rounded-br-md ${groupStart ? "rounded-tr-2xl" : "rounded-tr-md"}` : `bg-white/6 text-slate-300 rounded-r-2xl rounded-bl-md ${groupStart ? "rounded-tl-2xl" : "rounded-tl-md"}`}`}>
+                          {!!m.attachment_id && (
+                            <MessageAttachment
+                              m={m}
+                              onError={() => toast({ message: "Download failed", type: "error" })}
+                            />
+                          )}
+                          {!!m.body && <span className="whitespace-pre-wrap">{linkify(m.body)}</span>}
                           <span className={`float-right whitespace-nowrap select-none text-[10px] leading-none ml-2 mt-2 ${isOwn ? "text-slate-300/60" : "text-slate-500"}`}>
                             {!!m.edited && "edited "}
                             {formatTime(m.created_at)}
                           </span>
-                        </p>
+                        </div>
                         {canDelete && (
                           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
                             {isOwn && (
@@ -371,21 +489,65 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
       </div>
 
       {/* Composer */}
-      <form onSubmit={handleSend} className="px-4 py-3 border-t border-white/6 flex gap-2 shrink-0">
-        <input
-          className="mf-input flex-1 text-sm"
-          placeholder="Message the team…"
-          value={draft}
-          maxLength={4000}
-          onChange={(e) => { setDraft(e.target.value); emitTyping(); }}
-        />
-        <button
-          type="submit"
-          disabled={sending || !draft.trim()}
-          className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/30 hover:bg-brand-500/30 transition-all disabled:opacity-50 shrink-0"
-        >
-          {sending ? "…" : "Send"}
-        </button>
+      <form onSubmit={handleSend} className="px-4 py-3 border-t border-white/6 shrink-0">
+        <AnimatePresence>
+          {attachment && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              className="flex items-center gap-2 mb-2 px-2.5 py-1.5 rounded-lg bg-white/6 border border-white/8"
+            >
+              {attachmentPreview ? (
+                <img src={attachmentPreview} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
+              ) : (
+                <span className="w-8 h-8 rounded bg-white/8 flex items-center justify-center shrink-0 text-slate-400">
+                  <Icon name="paperclip" className="w-4 h-4" />
+                </span>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-slate-300 truncate">{attachment.name}</p>
+                <p className="text-[10px] text-slate-500">{formatFileSize(attachment.size)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={clearAttachment}
+                title="Remove attachment"
+                className="w-6 h-6 rounded flex items-center justify-center text-slate-500 hover:text-red-400 transition-all shrink-0"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div className="flex gap-2">
+          <input ref={fileInputRef} type="file" className="hidden" onChange={pickAttachment} />
+          <input
+            className="mf-input flex-1 text-sm"
+            placeholder="Message the team…"
+            value={draft}
+            maxLength={4000}
+            onChange={(e) => { setDraft(e.target.value); emitTyping(); }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending}
+            title="Attach a file or image"
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-brand-300 hover:bg-brand-500/10 border border-white/8 transition-all disabled:opacity-50 shrink-0"
+          >
+            <Icon name="paperclip" className="w-4 h-4" />
+          </button>
+          <button
+            type="submit"
+            disabled={sending || (!draft.trim() && !attachment)}
+            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/30 hover:bg-brand-500/30 transition-all disabled:opacity-50 shrink-0"
+          >
+            {sending ? "…" : "Send"}
+          </button>
+        </div>
       </form>
     </div>
   );

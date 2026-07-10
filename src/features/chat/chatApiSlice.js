@@ -16,11 +16,15 @@ export const chatApiSlice = createApi({
       providesTags: (_, __, { projectId }) => [{ type: "Message", id: projectId }],
     }),
     sendMessage: b.mutation({
-      query: ({ projectId, body }) => ({
-        url: `/projects/${projectId}/messages`,
-        method: "POST",
-        body: { body },
-      }),
+      query: ({ projectId, body, file }) => {
+        if (file) {
+          const formData = new FormData();
+          if (body) formData.append("body", body);
+          formData.append("file", file);
+          return { url: `/projects/${projectId}/messages`, method: "POST", body: formData };
+        }
+        return { url: `/projects/${projectId}/messages`, method: "POST", body: { body } };
+      },
       transformResponse: (r) => r.data,
       // No invalidation — the socket "chat:message" event drives the UI update,
       // since the REST response and the broadcast both arrive to the sender.

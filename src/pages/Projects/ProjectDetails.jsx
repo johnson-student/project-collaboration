@@ -28,6 +28,7 @@ import SubtaskList from "../../components/common/SubtaskList.jsx";
 import SubtaskDraftField from "../../components/common/SubtaskDraftField.jsx";
 import TaskComments from "../../components/common/TaskComments.jsx";
 import ChatPanel from "../../components/common/ChatPanel.jsx";
+import AiChatPanel from "../../components/common/AiChatPanel.jsx";
 import "../../components/common/MemberPicker.css";
 import "../../components/common/modal.css";
 import { apiBaseUrl, getStoredAccessToken } from "../../api/authSession.js";
@@ -447,6 +448,7 @@ export default function ProjectDetails() {
   const TABS = [
     { key: "tasks",    label: "Tasks" },
     { key: "chat",     label: "Chat" },
+    { key: "ai",       label: "✨ AI Assistant" },
     { key: "files",    label: "Files" },
     { key: "activity", label: "Activity" },
     { key: "members",  label: "Team" },
@@ -614,6 +616,11 @@ export default function ProjectDetails() {
         {/* Chat Tab */}
         {activeTab === "chat" && (
           <ChatPanel projectId={id} currentUser={currentUser} projectRole={myRole} />
+        )}
+
+        {/* AI Assistant Tab */}
+        {activeTab === "ai" && (
+          <AiChatPanel projectId={id} />
         )}
 
         {/* Files Tab */}
