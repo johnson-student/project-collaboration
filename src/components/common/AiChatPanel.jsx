@@ -12,6 +12,7 @@ import {
 import { useCreateTaskMutation } from "../../features/tasks/taskApiSlice.js";
 
 const GENERATE_COMMAND = "/generate-task";
+const ANALYZE_COMMAND = "/analyze";
 
 // Structured assistant messages (tasks / clarification) store JSON in content
 const parsePayload = (m) => {
@@ -106,6 +107,59 @@ function TaskDraftList({ payload, projectId }) {
   );
 }
 
+// ── Project analysis card (from /analyze) ─────────────────────────────────
+const HEALTH_STYLES = {
+  "On Track": "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  "At Risk": "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  "Off Track": "bg-red-500/15 text-red-300 border-red-500/30",
+};
+
+function AnalysisReport({ payload }) {
+  return (
+    <div className="mt-2 space-y-3">
+      <div>
+        <span
+          className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold border ${
+            HEALTH_STYLES[payload.health] || HEALTH_STYLES["At Risk"]
+          }`}
+        >
+          {payload.health}
+        </span>
+        <p className="text-sm text-slate-300 whitespace-pre-wrap mt-2">{payload.summary}</p>
+      </div>
+      {payload.risks?.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Risks</p>
+          <div className="space-y-1.5">
+            {payload.risks.map((r, i) => (
+              <div key={i} className="rounded-xl px-3 py-2 bg-white/4 border border-white/10">
+                <span className="flex items-center gap-2">
+                  <PriorityBadge priority={r.severity} />
+                  <span className="text-sm font-semibold text-slate-200 leading-snug">{r.title}</span>
+                </span>
+                {r.detail && <span className="block text-xs text-slate-500 mt-1">{r.detail}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {payload.recommendations?.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">Recommendations</p>
+          <ul className="space-y-1">
+            {payload.recommendations.map((r, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
+                <span className="text-brand-400 font-bold shrink-0">{i + 1}.</span>
+                <span>{r}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── One message bubble ─────────────────────────────────────────────────────
 function AiMessage({ m, projectId }) {
   const isUser = m.role === "user";
@@ -129,6 +183,7 @@ function AiMessage({ m, projectId }) {
           <>
             <p className="text-sm text-slate-300 whitespace-pre-wrap">{payload.message}</p>
             {payload.type === "tasks" && <TaskDraftList payload={payload} projectId={projectId} />}
+            {payload.type === "analysis" && <AnalysisReport payload={payload} />}
             {payload.type === "clarification" && (
               <ul className="mt-2 space-y-1">
                 {payload.questions.map((q, i) => (
@@ -230,7 +285,9 @@ export default function AiChatPanel({ projectId }) {
               I can help you plan, prioritize, and break down work — and I can update the
               project's name, description, or deadline and add subtasks to tasks if you ask. Type{" "}
               <code className="text-brand-300 bg-brand-500/10 px-1 py-0.5 rounded">{GENERATE_COMMAND}</code>{" "}
-              and I'll suggest tasks for this project — or ask you for more detail if I need it.
+              and I'll suggest tasks for this project — or ask you for more detail if I need it. Type{" "}
+              <code className="text-brand-300 bg-brand-500/10 px-1 py-0.5 rounded">{ANALYZE_COMMAND}</code>{" "}
+              for a health report with risks and recommendations.
             </p>
           </div>
         ) : (
@@ -278,6 +335,14 @@ export default function AiChatPanel({ projectId }) {
             className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/4 text-slate-400 border border-white/8 hover:text-brand-300 hover:border-brand-500/30 transition-all disabled:opacity-50 flex items-center gap-1"
           >
             ⚡ Generate tasks
+          </button>
+          <button
+            type="button"
+            onClick={() => send(ANALYZE_COMMAND)}
+            disabled={sending}
+            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/4 text-slate-400 border border-white/8 hover:text-brand-300 hover:border-brand-500/30 transition-all disabled:opacity-50 flex items-center gap-1"
+          >
+            🔍 Analyze project
           </button>
         </div>
         <form
