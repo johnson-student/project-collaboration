@@ -50,12 +50,13 @@ axiosClient.interceptors.response.use(
 
       if (shouldAttemptTokenRefresh(originalRequest.url || "")) {
         try {
-          const { data } = await refreshClient.post("/auth/refresh"); 
-          if (data?.accessToken) {
-            setStoredAuthTokens(data);
+          const { data } = await refreshClient.post("/auth/refresh");
+          const accessToken = data?.data?.accessToken;
+          if (accessToken) {
+            setStoredAuthTokens({ accessToken });
             originalRequest.headers = {
               ...originalRequest.headers,
-              Authorization: `Bearer ${data.accessToken}`,
+              Authorization: `Bearer ${accessToken}`,
             };
             return axiosClient(originalRequest);
           }

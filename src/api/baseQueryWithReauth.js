@@ -41,7 +41,7 @@ export const baseQueryWithReauth = async (args, api, extraOptions) => {
   const accessToken = refreshResult?.data?.data?.accessToken;
   
   if (accessToken) {
-    setStoredAuthTokens(accessToken);
+    setStoredAuthTokens({ accessToken });
     api.dispatch(updateTokens(refreshResult.data.data));
     result = await rawBaseQuery(args, api, extraOptions);
     return result;
