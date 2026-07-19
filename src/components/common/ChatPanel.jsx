@@ -65,6 +65,17 @@ function downloadAttachment(m, onError) {
 
 function MessageAttachment({ m, onError }) {
   const isImage = m.attachment_mime?.startsWith("image/");
+  const isAudio = m.attachment_mime?.startsWith("audio/");
+  if (isAudio) {
+    return (
+      <div className="flex items-center gap-2 mb-1">
+        <span className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center shrink-0 text-slate-300">
+          <Icon name="mic" className="w-4 h-4" />
+        </span>
+        <audio controls preload="metadata" src={attachmentUrl(m)} className="h-9" style={{ width: 200 }} />
+      </div>
+    );
+  }
   if (isImage) {
     return (
       <img
@@ -114,11 +125,16 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
   const [editText, setEditText] = useState("");
   const [typingUsers, setTypingUsers] = useState({}); // userId -> name
   const [joined, setJoined] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
 
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimers = useRef({});
   const lastTypingEmit = useRef(0);
+  const recorderRef = useRef(null);
+  const recordTimerRef = useRef(null);
+  const discardRecordingRef = useRef(false);
 
   const pickAttachment = (e) => {
     const file = e.target.files?.[0];
@@ -130,7 +146,9 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
     }
     if (attachmentPreview) URL.revokeObjectURL(attachmentPreview);
     setAttachment(file);
-    setAttachmentPreview(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+    setAttachmentPreview(
+      file.type.startsWith("image/") || file.type.startsWith("audio/") ? URL.createObjectURL(file) : null
+    );
   };
 
   const clearAttachment = useCallback(() => {
@@ -140,6 +158,68 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
       return null;
     });
   }, []);
+
+  // ── Voice messages ─────────────────────────────────────────
+  const startRecording = async () => {
+    if (recording || sending) return;
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      toast({ message: "Microphone access is needed to record a voice message", type: "error" });
+      return;
+    }
+    // Chrome/Firefox record webm/opus; Safari records mp4 (m4a)
+    const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find(
+      (t) => window.MediaRecorder?.isTypeSupported?.(t)
+    );
+    if (!mimeType) {
+      stream.getTracks().forEach((t) => t.stop());
+      toast({ message: "Voice recording isn't supported in this browser", type: "error" });
+      return;
+    }
+    const recorder = new MediaRecorder(stream, { mimeType });
+    const chunks = [];
+    discardRecordingRef.current = false;
+    recorder.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data);
+    };
+    recorder.onstop = () => {
+      stream.getTracks().forEach((t) => t.stop());
+      clearInterval(recordTimerRef.current);
+      setRecording(false);
+      setRecordSeconds(0);
+      if (discardRecordingRef.current || chunks.length === 0) return;
+      const type = mimeType.split(";")[0];
+      const ext = type === "audio/mp4" ? "m4a" : type.split("/")[1];
+      const file = new File(chunks, `voice-message-${Date.now()}.${ext}`, { type });
+      setAttachment(file);
+      setAttachmentPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(file);
+      });
+    };
+    recorderRef.current = recorder;
+    recorder.start();
+    setRecording(true);
+    setRecordSeconds(0);
+    recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+  };
+
+  const stopRecording = useCallback((discard = false) => {
+    discardRecordingRef.current = discard;
+    const rec = recorderRef.current;
+    if (rec && rec.state !== "inactive") rec.stop();
+  }, []);
+
+  // Abandon any in-flight recording on unmount
+  useEffect(
+    () => () => {
+      stopRecording(true);
+      clearInterval(recordTimerRef.current);
+    },
+    [stopRecording]
+  );
 
   // Seed local message list from REST history; keep any live socket
   // messages that arrived while the (re)fetch was in flight
@@ -498,17 +578,28 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
               exit={{ opacity: 0, y: 4 }}
               className="flex items-center gap-2 mb-2 px-2.5 py-1.5 rounded-lg bg-white/6 border border-white/8"
             >
-              {attachmentPreview ? (
-                <img src={attachmentPreview} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
+              {attachment.type.startsWith("audio/") ? (
+                <>
+                  <span className="w-8 h-8 rounded bg-brand-500/15 flex items-center justify-center shrink-0 text-brand-300">
+                    <Icon name="mic" className="w-4 h-4" />
+                  </span>
+                  <audio controls src={attachmentPreview} className="flex-1 min-w-0 h-9" />
+                </>
               ) : (
-                <span className="w-8 h-8 rounded bg-white/8 flex items-center justify-center shrink-0 text-slate-400">
-                  <Icon name="paperclip" className="w-4 h-4" />
-                </span>
+                <>
+                  {attachmentPreview ? (
+                    <img src={attachmentPreview} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
+                  ) : (
+                    <span className="w-8 h-8 rounded bg-white/8 flex items-center justify-center shrink-0 text-slate-400">
+                      <Icon name="paperclip" className="w-4 h-4" />
+                    </span>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-slate-300 truncate">{attachment.name}</p>
+                    <p className="text-[10px] text-slate-500">{formatFileSize(attachment.size)}</p>
+                  </div>
+                </>
               )}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-300 truncate">{attachment.name}</p>
-                <p className="text-[10px] text-slate-500">{formatFileSize(attachment.size)}</p>
-              </div>
               <button
                 type="button"
                 onClick={clearAttachment}
@@ -524,29 +615,71 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
         </AnimatePresence>
         <div className="flex gap-2">
           <input ref={fileInputRef} type="file" className="hidden" onChange={pickAttachment} />
-          <input
-            className="mf-input flex-1 text-sm"
-            placeholder="Message the team…"
-            value={draft}
-            maxLength={4000}
-            onChange={(e) => { setDraft(e.target.value); emitTyping(); }}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending}
-            title="Attach a file or image"
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-brand-300 hover:bg-brand-500/10 border border-white/8 transition-all disabled:opacity-50 shrink-0"
-          >
-            <Icon name="paperclip" className="w-4 h-4" />
-          </button>
-          <button
-            type="submit"
-            disabled={sending || (!draft.trim() && !attachment)}
-            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/30 hover:bg-brand-500/30 transition-all disabled:opacity-50 shrink-0"
-          >
-            {sending ? "…" : "Send"}
-          </button>
+          {recording ? (
+            <>
+              <div className="mf-input flex-1 text-sm flex items-center gap-2 select-none">
+                <motion.span
+                  className="w-2 h-2 rounded-full bg-red-500 inline-block shrink-0"
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <span className="text-slate-300">
+                  Recording… {Math.floor(recordSeconds / 60)}:{String(recordSeconds % 60).padStart(2, "0")}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => stopRecording(true)}
+                title="Cancel recording"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 border border-white/8 transition-all shrink-0"
+              >
+                <Icon name="x" className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => stopRecording(false)}
+                title="Finish recording"
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 transition-all shrink-0"
+              >
+                Stop
+              </button>
+            </>
+          ) : (
+            <>
+              <input
+                className="mf-input flex-1 text-sm"
+                placeholder="Message the team…"
+                value={draft}
+                maxLength={4000}
+                onChange={(e) => { setDraft(e.target.value); emitTyping(); }}
+              />
+              <button
+                type="button"
+                onClick={startRecording}
+                disabled={sending}
+                title="Record a voice message"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-brand-300 hover:bg-brand-500/10 border border-white/8 transition-all disabled:opacity-50 shrink-0"
+              >
+                <Icon name="mic" className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending}
+                title="Attach a file or image"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-500 hover:text-brand-300 hover:bg-brand-500/10 border border-white/8 transition-all disabled:opacity-50 shrink-0"
+              >
+                <Icon name="paperclip" className="w-4 h-4" />
+              </button>
+              <button
+                type="submit"
+                disabled={sending || (!draft.trim() && !attachment)}
+                className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/30 hover:bg-brand-500/30 transition-all disabled:opacity-50 shrink-0"
+              >
+                {sending ? "…" : "Send"}
+              </button>
+            </>
+          )}
         </div>
       </form>
     </div>
