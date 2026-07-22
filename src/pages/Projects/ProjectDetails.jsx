@@ -336,6 +336,7 @@ export default function ProjectDetails() {
   const [createSubtask] = useCreateSubtaskMutation();
   const [updateTask]  = useUpdateTaskMutation();
   const [deleteTask]  = useDeleteTaskMutation();
+  const [moveTask]    = useMoveTaskMutation();
   const [deleteProject, { isLoading: deletingProject }] = useDeleteProjectMutation();
   const [createInvitation, { isLoading: inviting }] = useCreateInvitationMutation();
 
@@ -354,6 +355,9 @@ export default function ProjectDetails() {
   const [taskForm, setTaskForm] = useState({ title: "", description: "", priority: "Medium", status: "Todo", dueDate: "", tags: "", assignee: null });
   const [taskError, setTaskError] = useState("");
   const [draftSubtasks, setDraftSubtasks] = useState([]);
+  const [draggedTask, setDraggedTask] = useState(null);
+  const [dragOverColumn, setDragOverColumn] = useState(null);
+  const [completeConfirm, setCompleteConfirm] = useState(null); // { task, status }
 
   if (isLoading) return (
     <div className="space-y-6">
@@ -366,6 +370,34 @@ export default function ProjectDetails() {
   const canManage = ["Owner", "Admin"].includes(myRole);
 
   const getTasksByStatus = (status) => allTasks.filter(t => t.status === status);
+
+  const handleDragStart = (e, task) => { setDraggedTask(task); e.dataTransfer.effectAllowed = "move"; };
+  const handleDragOver = (e, status) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverColumn(status); };
+  const handleDragEnd = () => { setDraggedTask(null); setDragOverColumn(null); };
+  const handleDrop = async (e, status) => {
+    e.preventDefault();
+    const task = draggedTask;
+    setDraggedTask(null);
+    setDragOverColumn(null);
+    if (!task || task.status === status) return;
+    try {
+      await moveTask({ id: task.id, status }).unwrap();
+    } catch (err) {
+      if (err?.status === 409 && err?.data?.requiresConfirmation) {
+        setCompleteConfirm({ task, status });
+      } else {
+        toast({ message: err?.data?.message || "Failed to move task.", type: "error" });
+      }
+    }
+  };
+  const confirmCompleteAll = async () => {
+    if (!completeConfirm) return;
+    try {
+      await moveTask({ id: completeConfirm.task.id, status: completeConfirm.status, completeSubtasks: true }).unwrap();
+    } finally {
+      setCompleteConfirm(null);
+    }
+  };
 
   const handleInviteMembers = async () => {
     if (!newMembers.length) return;
@@ -553,20 +585,30 @@ export default function ProjectDetails() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
               {COLUMNS.map(status => {
                 const columnTasks = getTasksByStatus(status);
+                const isDragOver = dragOverColumn === status;
                 return (
-                  <div key={status} className="rounded-2xl border border-white/6 overflow-hidden" style={{ background: "#111827" }}>
+                  <div key={status}
+                    onDragOver={e => handleDragOver(e, status)}
+                    onDragLeave={() => setDragOverColumn(null)}
+                    onDrop={e => handleDrop(e, status)}
+                    className={`rounded-2xl border overflow-hidden transition-all duration-200 ${isDragOver ? "border-brand-500/40 shadow-[0_0_20px_rgba(99,102,241,0.15)]" : "border-white/6"}`}
+                    style={{ background: isDragOver ? "rgba(99,102,241,0.04)" : "#111827" }}>
                     <div className="px-4 py-3 border-b border-white/6 flex items-center justify-between">
                       <span className="text-sm font-semibold text-slate-300">{status}</span>
                       <span className="text-xs font-bold text-slate-500 bg-white/6 px-2 py-0.5 rounded-full">{columnTasks.length}</span>
                     </div>
                     <div className="p-2 space-y-2 min-h-[80px]">
                       {tasksLoading ? [0,1].map(i => <Skeleton key={i} className="h-16 rounded-xl" />) :
-                       columnTasks.length === 0 ? <p className="text-center text-slate-700 text-xs py-4">No tasks</p> :
+                       columnTasks.length === 0 && !isDragOver ? <p className="text-center text-slate-700 text-xs py-4">No tasks</p> :
                        columnTasks.map(task => {
                          const assignee = members.find(m => m.id === (task.assignee_id ?? task.assigneeId));
+                         const isDragging = draggedTask?.id === task.id;
                          return (
                            <div key={task.id}
-                             className="rounded-xl p-3 bg-white/3 border border-white/5 hover:border-white/10 transition-all group relative cursor-pointer"
+                             draggable
+                             onDragStart={e => handleDragStart(e, task)}
+                             onDragEnd={handleDragEnd}
+                             className={`rounded-xl p-3 bg-white/3 border hover:border-white/10 transition-all group relative cursor-grab active:cursor-grabbing ${isDragging ? "opacity-40 border-brand-500/30" : "border-white/5"}`}
                              onClick={() => setSelectedTaskId(task.id)}
                            >
                              <p className="text-sm text-slate-300 font-medium leading-snug mb-2 pr-12">{task.title}</p>
@@ -588,13 +630,17 @@ export default function ProjectDetails() {
                                </div>
                              )}
                              <div className="absolute top-2 right-2 flex gap-1 transition-all">
-                               <button type="button" onClick={e => { e.stopPropagation(); setEditTask(task); }}
+                               <button type="button"
+                                 onMouseDown={e => e.stopPropagation()}
+                                 onClick={e => { e.stopPropagation(); setEditTask(task); }}
                                  className="w-6 h-6 rounded-md flex items-center justify-center text-slate-600 hover:text-brand-400 hover:bg-brand-400/10 transition-all">
                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
                                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                                  </svg>
                                </button>
-                               <button type="button" onClick={e => { e.stopPropagation(); setDeleteTaskTarget(task); }}
+                               <button type="button"
+                                 onMouseDown={e => e.stopPropagation()}
+                                 onClick={e => { e.stopPropagation(); setDeleteTaskTarget(task); }}
                                  className="w-6 h-6 rounded-md flex items-center justify-center text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-all">
                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3">
                                    <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" />
@@ -605,6 +651,11 @@ export default function ProjectDetails() {
                          );
                        })
                       }
+                      {isDragOver && !tasksLoading && (
+                        <div className="rounded-xl border-2 border-dashed border-brand-500/40 h-16 flex items-center justify-center">
+                          <span className="text-xs text-brand-400 font-medium">Drop here</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -786,6 +837,27 @@ export default function ProjectDetails() {
               <div className="modal-actions">
                 <button type="button" className="btn-ghost" onClick={() => setDeleteTaskTarget(null)}>Cancel</button>
                 <button type="button" className="btn-danger" onClick={handleDeleteTask}>Delete Task</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Task Confirmation (unfinished subtasks) */}
+      {completeConfirm && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setCompleteConfirm(null)}>
+          <div className="modal-box" style={{ maxWidth: 440 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Complete this task?</h2>
+              <button type="button" className="modal-close" onClick={() => setCompleteConfirm(null)}>×</button>
+            </div>
+            <div className="modal-form">
+              <p className="text-slate-400 text-sm mb-4">
+                This task still has unfinished subtasks. Completing the parent task will also mark all remaining subtasks as completed.
+              </p>
+              <div className="modal-actions">
+                <button type="button" className="btn-ghost" onClick={() => setCompleteConfirm(null)}>Cancel</button>
+                <button type="button" className="btn-primary" onClick={confirmCompleteAll}>Complete All</button>
               </div>
             </div>
           </div>
