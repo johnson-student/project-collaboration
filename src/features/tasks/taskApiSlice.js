@@ -65,6 +65,26 @@ export const taskApiSlice = createApi({
         { type: 'Task', id },
         { type: 'Task', id: 'LIST' },
       ],
+      // Update every cached task-list variant (Kanban, project tasks tab, dashboard, …)
+      // immediately, so the card moves on drop instead of waiting on the round trip.
+      async onQueryStarted({ id, status }, { dispatch, getState, queryFulfilled }) {
+        const patches = taskApiSlice.util
+          .selectCachedArgsForQuery(getState(), 'getTasks')
+          .map((arg) =>
+            dispatch(
+              taskApiSlice.util.updateQueryData('getTasks', arg, (draft) => {
+                const list = Array.isArray(draft) ? draft : draft?.data;
+                const task = list?.find((t) => t.id === id);
+                if (task) task.status = status;
+              })
+            )
+          );
+        try {
+          await queryFulfilled;
+        } catch {
+          patches.forEach((patch) => patch.undo());
+        }
+      },
     }),
     assignTask: b.mutation({
       query: ({ id, userId }) => ({
