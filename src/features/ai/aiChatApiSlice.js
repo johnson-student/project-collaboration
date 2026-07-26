@@ -40,11 +40,19 @@ export const aiChatApiSlice = createApi({
                 ]),
               );
             }
-            if (action.tool === 'create_subtasks' || action.tool === 'assign_task') {
+            if (action.tool === 'create_task' || action.tool === 'create_subtasks' || action.tool === 'assign_task') {
               dispatch(
                 taskApiSlice.util.invalidateTags([
                   { type: 'Task', id: action.taskId },
                   { type: 'Task', id: 'LIST' },
+                ]),
+              );
+            }
+            if (action.tool === 'create_task') {
+              dispatch(
+                projectApiSlice.util.invalidateTags([
+                  { type: 'Project', id: projectId },
+                  { type: 'Project', id: 'LIST' },
                 ]),
               );
             }

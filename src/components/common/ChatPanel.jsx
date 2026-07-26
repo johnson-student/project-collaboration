@@ -5,6 +5,7 @@ import { useToast } from "./Toast.jsx";
 import { getSocket } from "../../api/socket.js";
 import { formatTime, formatChatDate, resolveAssetUrl } from "../../utils/helpers.js";
 import { Icon } from "./icons.jsx";
+import MarkdownMessage from "./MarkdownMessage.jsx";
 import {
   useGetProjectMessagesQuery,
   useSendMessageMutation,
@@ -14,29 +15,6 @@ import {
 import { fileApiSlice } from "../../features/files/fileApiSlice.js";
 
 const TYPING_TIMEOUT_MS = 2500;
-
-// Matches http(s) URLs and bare www. links, excluding trailing punctuation
-const URL_REGEX = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,:;"')\]!?])/g;
-
-// Split on the capturing group: odd indices are the matched URLs
-function linkify(text) {
-  return String(text).split(URL_REGEX).map((part, i) =>
-    i % 2 === 1 ? (
-      <a
-        key={i}
-        href={part.startsWith("www.") ? `https://${part}` : part}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="underline decoration-brand-400/50 text-brand-300 hover:text-brand-200 break-all"
-      >
-        {part}
-      </a>
-    ) : (
-      part
-    )
-  );
-}
 
 function formatFileSize(bytes) {
   if (!bytes) return "0 B";
@@ -497,7 +475,7 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
                               onError={() => toast({ message: "Download failed", type: "error" })}
                             />
                           )}
-                          {!!m.body && <span className="whitespace-pre-wrap">{linkify(m.body)}</span>}
+                          {!!m.body && <MarkdownMessage text={m.body} />}
                           <span className={`float-right whitespace-nowrap select-none text-[10px] leading-none ml-2 mt-2 ${isOwn ? "text-slate-300/60" : "text-slate-500"}`}>
                             {!!m.edited && "edited "}
                             {formatTime(m.created_at)}
@@ -646,12 +624,19 @@ export default function ChatPanel({ projectId, currentUser, projectRole }) {
             </>
           ) : (
             <>
-              <input
-                className="mf-input flex-1 text-sm"
+              <textarea
+                rows={1}
+                className="mf-input flex-1 text-sm resize-none max-h-32"
                 placeholder="Message the team…"
                 value={draft}
                 maxLength={4000}
                 onChange={(e) => { setDraft(e.target.value); emitTyping(); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    handleSend(e);
+                  }
+                }}
               />
               <button
                 type="button"

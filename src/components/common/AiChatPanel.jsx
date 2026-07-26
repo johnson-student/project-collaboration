@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useToast } from "./Toast.jsx";
 import { Icon } from "./icons.jsx";
+import MarkdownMessage from "./MarkdownMessage.jsx";
 import { PriorityBadge } from "../ui/index.jsx";
 import { formatTime } from "../../utils/helpers.js";
 import {
@@ -181,7 +182,7 @@ function AiMessage({ m, projectId }) {
       >
         {payload ? (
           <>
-            <p className="text-sm text-slate-300 whitespace-pre-wrap">{payload.message}</p>
+            <MarkdownMessage text={payload.message} className="text-slate-300" />
             {payload.type === "tasks" && <TaskDraftList payload={payload} projectId={projectId} />}
             {payload.type === "analysis" && <AnalysisReport payload={payload} />}
             {payload.type === "clarification" && (
@@ -196,7 +197,7 @@ function AiMessage({ m, projectId }) {
             )}
           </>
         ) : (
-          <p className="text-sm text-slate-300 whitespace-pre-wrap">{m.content}</p>
+          <MarkdownMessage text={m.content} className="text-slate-300" />
         )}
         <p className={`text-[10px] mt-1.5 ${isUser ? "text-brand-300/50 text-right" : "text-slate-600"}`}>
           {formatTime(m.created_at)}
@@ -299,7 +300,7 @@ export default function AiChatPanel({ projectId }) {
               <>
                 <div className="flex justify-end">
                   <div className="max-w-[80%] rounded-2xl rounded-br-md px-3.5 py-2.5 border bg-brand-500/20 border-brand-500/25">
-                    <p className="text-sm text-slate-300 whitespace-pre-wrap">{pending}</p>
+                    <MarkdownMessage text={pending} className="text-slate-300" />
                   </div>
                 </div>
                 <div className="flex gap-2.5 justify-start">
@@ -349,13 +350,20 @@ export default function AiChatPanel({ projectId }) {
           onSubmit={(e) => { e.preventDefault(); send(draft); }}
           className="flex items-center gap-2"
         >
-          <input
+          <textarea
             ref={inputRef}
+            rows={1}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                send(draft);
+              }
+            }}
             disabled={sending}
             placeholder={`Message the AI, or type ${GENERATE_COMMAND}…`}
-            className="flex-1 rounded-xl bg-white/4 border border-white/8 px-3.5 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-brand-500/40 transition-all disabled:opacity-60"
+            className="flex-1 rounded-xl bg-white/4 border border-white/8 px-3.5 py-2.5 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-brand-500/40 transition-all disabled:opacity-60 resize-none max-h-32"
           />
           <button
             type="submit"
