@@ -43,3 +43,8 @@
 .auth-strength-label{font-size:.72rem;font-weight:600;min-width:36px}
 .auth-success-state{text-align:center;padding:.5rem 0}
 .auth-success-icon{width:56px;height:56px;border-radius:50%;background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;color:#10b981}
+.auth-divider{display:flex;align-items:center;gap:.75rem;margin:1.25rem 0;color:#4b5563;font-size:.75rem}
+.auth-divider::before,.auth-divider::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.08)}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:.6rem;padding:.7rem;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#e5e7eb;font-size:.875rem;font-weight:500;cursor:pointer;transition:background .2s,border-color .2s}
+.google-btn:hover:not(:disabled){background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)}
+.google-btn:disabled{opacity:.55;cursor:not-allowed}

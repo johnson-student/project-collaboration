@@ -1,16 +1,18 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { useLoginMutation, useResendVerificationMutation } from "../../features/auth/authApiSlice";
+import { useLoginMutation, useGoogleLoginMutation, useResendVerificationMutation } from "../../features/auth/authApiSlice";
 import { setCredentials } from "../../features/auth/authSlice";
 import "./auth.css";
 import { Icon } from "../../components/common/icons.jsx";
+import GoogleButton from "../../components/common/GoogleButton.jsx";
 
 export default function Login() {
   const navigate  = useNavigate();
   const location  = useLocation();
   const dispatch  = useDispatch();
   const [login, { isLoading }] = useLoginMutation();
+  const [googleLogin, { isLoading: isGoogleLoading }] = useGoogleLoginMutation();
   const [resendVerification, { isLoading: isResending }] = useResendVerificationMutation();
   const [form, setForm]   = useState({ email: "", password: "" });
   const [error, setError] = useState("");
@@ -36,6 +38,17 @@ export default function Login() {
   const resend = async () => {
     try { await resendVerification(form.email).unwrap(); setResent(true); setError(""); }
     catch { setError("Could not resend the verification email. Please try again."); }
+  };
+
+  const handleGoogleSuccess = async (accessToken) => {
+    setError("");
+    try {
+      const data = await googleLogin(accessToken).unwrap();
+      dispatch(setCredentials(data));
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err?.data?.message || "Google sign-in failed. Please try again.");
+    }
   };
 
   return (
@@ -89,6 +102,8 @@ export default function Login() {
             {isLoading?<span className="auth-btn-loading"><span className="auth-spinner"/>Signing in…</span>:"Sign in"}
           </button>
         </form>
+        <div className="auth-divider">or</div>
+        <GoogleButton onSuccess={handleGoogleSuccess} disabled={isLoading || isGoogleLoading} />
         <p className="auth-switch">Don't have an account? <Link to="/register" className="auth-link">Create one free</Link></p>
       </div>
     </div>

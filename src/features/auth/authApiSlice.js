@@ -8,6 +8,7 @@ export const authApiSlice = createApi({
   endpoints: (b) => ({
     getMe:           b.query({ query: () => "/auth/me", transformResponse: (r) => r.data, providesTags: ["Auth"] }),
     login:           b.mutation({ query: (body) => ({ url: "/auth/login",           method: "POST", body }), transformResponse: (r) => r.data }),
+    googleLogin:     b.mutation({ query: (accessToken) => ({ url: "/auth/google",   method: "POST", body: { accessToken } }), transformResponse: (r) => r.data }),
     register:        b.mutation({ query: (body) => ({ url: "/auth/register",        method: "POST", body }), transformResponse: (r) => r.data }),
     logout:          b.mutation({ query: ()     => ({ url: "/auth/logout",          method: "POST" }) }),
     forgotPassword:  b.mutation({ query: (email)=> ({ url: "/auth/forgot-password", method: "POST", body: { email } }) }),
@@ -18,7 +19,7 @@ export const authApiSlice = createApi({
 });
 
 export const {
-  useGetMeQuery, useLoginMutation, useRegisterMutation,
+  useGetMeQuery, useLoginMutation, useGoogleLoginMutation, useRegisterMutation,
   useLogoutMutation, useForgotPasswordMutation, useResetPasswordMutation,
   useVerifyEmailMutation, useResendVerificationMutation,
 } = authApiSlice;

@@ -1,14 +1,31 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { useRegisterMutation } from "../../features/auth/authApiSlice";
+import { Link, useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { useRegisterMutation, useGoogleLoginMutation } from "../../features/auth/authApiSlice";
+import { setCredentials } from "../../features/auth/authSlice";
 import "./auth.css";
+import GoogleButton from "../../components/common/GoogleButton.jsx";
 
 export default function Register() {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
   const [register, { isLoading }] = useRegisterMutation();
+  const [googleLogin, { isLoading: isGoogleLoading }] = useGoogleLoginMutation();
   const [form, setForm]   = useState({ name:"", email:"", password:"", confirm:"" });
   const [error, setError] = useState("");
   const [show, setShow]   = useState(false);
   const [registered, setRegistered] = useState(false);
+
+  const handleGoogleSuccess = async (accessToken) => {
+    setError("");
+    try {
+      const data = await googleLogin(accessToken).unwrap();
+      dispatch(setCredentials(data));
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError(err?.data?.message || "Google sign-in failed. Please try again.");
+    }
+  };
 
   const handle = (e) => { setForm((f)=>({...f,[e.target.name]:e.target.value})); setError(""); };
 
@@ -112,6 +129,8 @@ export default function Register() {
             {isLoading?<span className="auth-btn-loading"><span className="auth-spinner"/>Creating account…</span>:"Create account"}
           </button>
         </form>
+        <div className="auth-divider">or</div>
+        <GoogleButton onSuccess={handleGoogleSuccess} disabled={isLoading || isGoogleLoading} label="Sign up with Google" />
         <p className="auth-switch">Already have an account? <Link to="/login" className="auth-link">Sign in</Link></p>
       </div>
     </div>
